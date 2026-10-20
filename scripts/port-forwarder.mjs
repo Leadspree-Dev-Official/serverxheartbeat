@@ -1,54 +1,53 @@
 import http from 'node:http';
 
-const PROXY_PORT = 5173;
-const TARGET_PORT = 3000;
+const TARGET_PORT = 8787;
+const PORTS_TO_LISTEN = [3000, 5173];
 
-const server = http.createServer((clientReq, clientRes) => {
-  const options = {
-    hostname: '127.0.0.1',
-    port: TARGET_PORT,
-    path: clientReq.url,
-    method: clientReq.method,
-    headers: {
-      ...clientReq.headers,
-      host: `127.0.0.1:${TARGET_PORT}`,
-    },
-  };
-
-  const proxyReq = http.request(options, (targetRes) => {
-    clientRes.writeHead(targetRes.statusCode || 200, targetRes.headers);
-    targetRes.pipe(clientRes, { end: true });
-  });
-
-  proxyReq.on('error', (err) => {
-    // If port 3000 isn't answering, try port 8787
-    const fallbackOptions = {
+function createProxyServer(listenPort) {
+  const server = http.createServer((clientReq, clientRes) => {
+    const options = {
       hostname: '127.0.0.1',
-      port: 8787,
+      port: TARGET_PORT,
       path: clientReq.url,
       method: clientReq.method,
       headers: {
         ...clientReq.headers,
-        host: '127.0.0.1:8787',
+        host: `127.0.0.1:${TARGET_PORT}`,
       },
     };
 
-    const fallbackReq = http.request(fallbackOptions, (fbRes) => {
-      clientRes.writeHead(fbRes.statusCode || 200, fbRes.headers);
-      fbRes.pipe(clientRes, { end: true });
+    const proxyReq = http.request(options, (targetRes) => {
+      clientRes.writeHead(targetRes.statusCode || 200, targetRes.headers);
+      targetRes.pipe(clientRes, { end: true });
     });
 
-    fallbackReq.on('error', (fbErr) => {
+    proxyReq.on('error', (err) => {
       clientRes.writeHead(502, { 'Content-Type': 'text/plain' });
-      clientRes.end(`Gateway error: ${err.message} / ${fbErr.message}`);
+      clientRes.end(`Gateway error connecting to worker on port ${TARGET_PORT}: ${err.message}`);
     });
 
-    clientReq.pipe(fallbackReq, { end: true });
+    clientReq.pipe(proxyReq, { end: true });
   });
 
-  clientReq.pipe(proxyReq, { end: true });
-});
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[Gateway] Port ${listenPort} already in use, skipping...`);
+    } else {
+      console.error(`[Gateway] Error on port ${listenPort}:`, err);
+    }
+  });
 
-server.listen(PROXY_PORT, '0.0.0.0', () => {
-  console.log(`[Forwarder] Port ${PROXY_PORT} -> ${TARGET_PORT} / 8787 listening`);
-});
+  server.listen(listenPort, '0.0.0.0', () => {
+    console.log(`[Gateway] Port ${listenPort} -> http://127.0.0.1:${TARGET_PORT} ready`);
+  });
+
+  return server;
+}
+
+// Start listeners on both ports
+for (const port of PORTS_TO_LISTEN) {
+  createProxyServer(port);
+}
+
+// Keep the event loop alive permanently
+setInterval(() => {}, 60000);
