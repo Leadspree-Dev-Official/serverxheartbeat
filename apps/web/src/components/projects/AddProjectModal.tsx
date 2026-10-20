@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Check,
@@ -100,6 +100,73 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
     initialProject?.schedule_timezone || 'Asia/Kolkata'
   );
   const [newTimeHour, setNewTimeHour] = useState<number>(21);
+
+  // Automatically reset to fresh step 1 or load initial project whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setSaving(false);
+      setTesting(false);
+      setTestResult(null);
+      setErrorMessage(null);
+      setShowAuthValue(false);
+
+      if (initialProject) {
+        setProvider(initialProject.provider || 'supabase');
+        setName(initialProject.name || '');
+        setEnvironment(initialProject.environment || 'production');
+        setBaseUrl(initialProject.base_url || '');
+        setEndpointPath(
+          initialProject.endpoint_path ||
+            (initialProject.provider === 'supabase' ? '/rest/v1/' : '/v1/health')
+        );
+        setHttpMethod(initialProject.http_method || 'GET');
+        setAuthType(initialProject.auth_type || 'none');
+        setAuthValue('');
+        setAppwriteProjectId(initialProject.custom_headers?.['X-Appwrite-Project'] || '');
+        setExpectedCodes(initialProject.expected_status_codes?.join(', ') || '200, 204');
+        setTimeoutMs(initialProject.timeout_ms || 10000);
+        setRetryCount(initialProject.retry_count ?? 2);
+        setEnabled(initialProject.enabled);
+        setScheduleMode(
+          initialProject.cron_expression && initialProject.cron_expression !== '30 3 * * SUN'
+            ? 'custom'
+            : 'default'
+        );
+        setScheduleDays(
+          initialProject.schedule_days && initialProject.schedule_days.length > 0
+            ? initialProject.schedule_days
+            : ['SUN']
+        );
+        setScheduleHours(
+          initialProject.schedule_hours && initialProject.schedule_hours.length > 0
+            ? initialProject.schedule_hours
+            : [9]
+        );
+        setScheduleMinutes(initialProject.schedule_minutes ?? 0);
+        setScheduleTimezone(initialProject.schedule_timezone || 'Asia/Kolkata');
+      } else {
+        setProvider('supabase');
+        setName('Supabase Production Edge');
+        setEnvironment('production');
+        setBaseUrl('');
+        setEndpointPath('/rest/v1/');
+        setHttpMethod('GET');
+        setAuthType('api_key');
+        setAuthValue('');
+        setAppwriteProjectId('');
+        setExpectedCodes('200, 204');
+        setTimeoutMs(10000);
+        setRetryCount(2);
+        setEnabled(true);
+        setScheduleMode('default');
+        setScheduleDays(['SUN']);
+        setScheduleHours([9]);
+        setScheduleMinutes(0);
+        setScheduleTimezone('Asia/Kolkata');
+      }
+    }
+  }, [isOpen, initialProject]);
 
   if (!isOpen) return null;
 
