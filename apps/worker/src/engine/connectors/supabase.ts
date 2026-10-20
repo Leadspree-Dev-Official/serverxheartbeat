@@ -18,6 +18,9 @@ export class SupabaseConnector extends BaseConnector {
     if (!endpoint.startsWith('/')) {
       endpoint = `/${endpoint}`;
     }
+    if (endpoint === '/rest/v1') {
+      endpoint = '/rest/v1/';
+    }
 
     const fullUrl = `${baseUrl}${endpoint}`;
     const headers: Record<string, string> = {

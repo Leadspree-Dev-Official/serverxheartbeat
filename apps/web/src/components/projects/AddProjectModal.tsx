@@ -673,13 +673,23 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
               {authType !== 'none' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    {initialProject?.secret_ref
-                      ? 'Replace Authentication Credential'
-                      : provider === 'appwrite'
-                      ? 'Appwrite Secret API Key'
-                      : 'Authentication Credential'}
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      {initialProject?.secret_ref
+                        ? 'Replace Authentication Credential'
+                        : provider === 'appwrite'
+                        ? 'Appwrite Secret API Key'
+                        : provider === 'supabase'
+                        ? 'Supabase Anon Public API Key'
+                        : 'Authentication Credential'}
+                      <span className="text-emerald-400"> *</span>
+                    </label>
+                    {provider === 'supabase' && (
+                      <span className="text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        anon / public key
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="password"
                     value={authValue}
@@ -689,15 +699,25 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                         ? `Stored key: ${initialProject.secret_ref} (Leave blank to keep existing)`
                         : provider === 'appwrite'
                         ? 'Enter secret API key from Appwrite Console -> Integrations -> API Keys'
+                        : provider === 'supabase'
+                        ? 'eyJhbGciOi... (Supabase Console -> Project Settings -> API -> anon key)'
                         : 'Enter secret token or key'
                     }
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-slate-400 mt-1">
                     {provider === 'appwrite'
                       ? 'Sent as X-Appwrite-Key alongside your Project ID to execute developer-authenticated requests.'
+                      : provider === 'supabase'
+                      ? 'Found in Supabase Dashboard → Project Settings → API → Project API Keys (anon public). Sent as apikey and Authorization Bearer headers to touch your database and reset the 7-day inactivity pause counter.'
                       : 'Secrets are encrypted and never exposed in client API responses.'}
                   </p>
+                </div>
+              )}
+
+              {provider === 'supabase' && authType === 'none' && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                  <strong>Notice:</strong> Supabase requires your project's <code>anon</code> public API key. Without it, Supabase's API gateway rejects requests with <code>HTTP 401 Unauthorized</code> and cannot guarantee resetting the 7-day inactivity pause counter. Please select <strong>API Key (apikey header)</strong> above.
                 </div>
               )}
 
@@ -1047,6 +1067,12 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                         HTTP {testResult.http_status ?? 'ERR'} • {testResult.response_time_ms}ms
                       </span>
                     </div>
+
+                    {testResult.http_status === 401 && provider === 'supabase' && (
+                      <div className="text-[11px] text-amber-300 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 leading-relaxed">
+                        💡 <strong>Missing Supabase API Key:</strong> Supabase's API gateway rejects unauthenticated requests to <code>/rest/v1/</code> with HTTP 401. Click <strong>Back to Step 3 (Auth &amp; Config)</strong>, select <strong>API Key (apikey header)</strong>, and paste your <code>anon</code> public key from <strong>Supabase Dashboard → Project Settings → API</strong>.
+                      </div>
+                    )}
 
                     {testResult.headers && (
                       <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
