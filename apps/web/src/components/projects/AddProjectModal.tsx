@@ -53,12 +53,18 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
   // Form State
   const [provider, setProvider] = useState<ProviderType>(initialProject?.provider || 'supabase');
-  const [name, setName] = useState(initialProject?.name || '');
+  const [name, setName] = useState(
+    initialProject?.name || (initialProject ? '' : 'Supabase Production Edge')
+  );
   const [environment, setEnvironment] = useState<EnvironmentType>(initialProject?.environment || 'production');
   const [baseUrl, setBaseUrl] = useState(initialProject?.base_url || '');
-  const [endpointPath, setEndpointPath] = useState(initialProject?.endpoint_path || '');
+  const [endpointPath, setEndpointPath] = useState(
+    initialProject?.endpoint_path || (initialProject ? '' : '/rest/v1/')
+  );
   const [httpMethod, setHttpMethod] = useState<HttpMethod>(initialProject?.http_method || 'GET');
-  const [authType, setAuthType] = useState<AuthType>(initialProject?.auth_type || 'none');
+  const [authType, setAuthType] = useState<AuthType>(
+    initialProject?.auth_type || (initialProject ? 'none' : 'api_key')
+  );
   const [authValue, setAuthValue] = useState('');
   const [showAuthValue, setShowAuthValue] = useState(false);
   const [appwriteProjectId, setAppwriteProjectId] = useState<string>(
@@ -622,6 +628,31 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                       ))}
                     </div>
                   </div>
+                ) : provider === 'supabase' ? (
+                  <div className="space-y-1 mt-1.5">
+                    <p className="text-[11px] text-slate-400">
+                      Select Supabase endpoint preset:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { label: '/rest/v1/ (Database API - service_role)', path: '/rest/v1/' },
+                        { label: '/auth/v1/health (Auth Service - anon or service_role)', path: '/auth/v1/health' },
+                      ].map((p) => (
+                        <button
+                          key={p.path}
+                          type="button"
+                          onClick={() => setEndpointPath(p.path)}
+                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                            endpointPath === p.path
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-semibold'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
                   <p className="text-[11px] text-slate-500 mt-1">
                     Pre-filled with official health check path. You can edit this anytime for custom endpoints.
@@ -683,13 +714,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                         : provider === 'appwrite'
                         ? 'Appwrite Secret API Key'
                         : provider === 'supabase'
-                        ? 'Supabase Anon Public API Key'
+                        ? 'Supabase API Key'
                         : 'Authentication Credential'}
                       <span className="text-emerald-400"> *</span>
                     </label>
                     {provider === 'supabase' && (
                       <span className="text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                        anon / public key
+                        service_role (for /rest/v1/) or anon
                       </span>
                     )}
                   </div>
@@ -707,7 +738,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                           : provider === 'appwrite'
                           ? 'Enter secret API key from Appwrite Console -> Integrations -> API Keys'
                           : provider === 'supabase'
-                          ? 'eyJhbGciOi... (Supabase Console -> Project Settings -> API -> anon key)'
+                          ? 'eyJhbGciOi... (Supabase Console -> Project Settings -> API -> service_role or anon)'
                           : 'Enter secret token or key'
                       }
                       className="w-full px-3.5 py-2 pr-10 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
@@ -728,7 +759,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
                   {provider === 'supabase' && authValue.trim() && !authValue.trim().startsWith('eyJ') && !authValue.trim().startsWith('sb_') && (
                     <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] mt-1.5 leading-relaxed">
-                      ⚠️ <strong>Key Format Notice:</strong> Supabase <code>anon</code> keys are JWT tokens that almost always start with <code>eyJ...</code> (or modern <code>sb_...</code>). If your key is short or doesn't start with <code>eyJ</code>, check that you copied the <strong>Project API Key (anon)</strong> from Supabase Settings $\rightarrow$ API, and not your database login password.
+                      ⚠️ <strong>Key Format Notice:</strong> Supabase API keys are JWT tokens that start with <code>eyJ...</code> (or modern <code>sb_...</code>). If your key is short or doesn't start with <code>eyJ</code>, check that you copied the <strong>service_role (secret)</strong> or <strong>anon (public)</strong> key from Supabase Settings $\rightarrow$ API, and not your database login password.
                     </div>
                   )}
 
@@ -736,7 +767,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                     {provider === 'appwrite'
                       ? 'Sent as X-Appwrite-Key alongside your Project ID to execute developer-authenticated requests.'
                       : provider === 'supabase'
-                      ? 'Found in Supabase Dashboard → Project Settings → API → Project API Keys (anon public). Sent as apikey and Authorization Bearer headers to touch your database and reset the 7-day inactivity pause counter.'
+                      ? 'Found in Supabase Dashboard → Project Settings → API. Note: For /rest/v1/, use your "service_role" key. For /auth/v1/health, you can use either "anon" or "service_role".'
                       : 'Secrets are encrypted and never exposed in client API responses.'}
                   </p>
                 </div>
@@ -744,7 +775,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
               {provider === 'supabase' && authType === 'none' && (
                 <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-                  <strong>Notice:</strong> Supabase requires your project's <code>anon</code> public API key. Without it, Supabase's API gateway rejects requests with <code>HTTP 401 Unauthorized</code> and cannot guarantee resetting the 7-day inactivity pause counter. Please select <strong>API Key (apikey header)</strong> above.
+                  <strong>Notice:</strong> Supabase requires an API key (service_role or anon). Without it, Supabase rejects requests with <code>HTTP 401 Unauthorized</code> and cannot reset the 7-day inactivity pause counter. Please select <strong>API Key (apikey header)</strong> above.
                 </div>
               )}
 
