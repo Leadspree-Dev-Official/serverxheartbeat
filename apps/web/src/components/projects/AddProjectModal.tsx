@@ -53,9 +53,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
   // Form State
   const [provider, setProvider] = useState<ProviderType>(initialProject?.provider || 'supabase');
-  const [name, setName] = useState(
-    initialProject?.name || (initialProject ? '' : 'Supabase Production Edge')
-  );
+  const [name, setName] = useState(initialProject?.name || '');
   const [environment, setEnvironment] = useState<EnvironmentType>(initialProject?.environment || 'production');
   const [baseUrl, setBaseUrl] = useState(initialProject?.base_url || '');
   const [endpointPath, setEndpointPath] = useState(
@@ -147,7 +145,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
         setScheduleTimezone(initialProject.schedule_timezone || 'Asia/Kolkata');
       } else {
         setProvider('supabase');
-        setName('Supabase Production Edge');
+        setName('');
         setEnvironment('production');
         setBaseUrl('');
         setEndpointPath('/rest/v1/');
@@ -265,24 +263,15 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
     if (!initialProject) {
       if (selected === 'appwrite') {
-        if (!name || name === 'Supabase Production' || name === 'Generic API') {
-          setName('Appwrite Cloud Backend');
-        }
         setBaseUrl('https://sgp.cloud.appwrite.io');
         setEndpointPath('/v1/health');
         setAuthType('api_key');
         setExpectedCodes('200');
       } else if (selected === 'supabase') {
-        if (!name || name === 'Appwrite Cloud Backend' || name === 'Generic API') {
-          setName('Supabase Production Edge');
-        }
         setEndpointPath('/rest/v1/');
         setAuthType('api_key');
         setExpectedCodes('200, 204, 401');
       } else {
-        if (!name || name === 'Appwrite Cloud Backend' || name === 'Supabase Production Edge') {
-          setName('Generic Service Probe');
-        }
         setEndpointPath('/healthz');
         setAuthType('none');
         setExpectedCodes('200');
@@ -528,7 +517,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Production Supabase Storefront"
+                  placeholder={
+                    provider === 'supabase'
+                      ? 'e.g. My Supabase App'
+                      : provider === 'appwrite'
+                      ? 'e.g. My Appwrite Backend'
+                      : 'e.g. Production Service'
+                  }
                   className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
