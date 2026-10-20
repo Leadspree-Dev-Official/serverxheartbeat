@@ -1,5 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import * as fs from 'node:fs';
 import { Project, HeartbeatRun, HeartbeatResult, ActivityLog, WorkerDeployment, Schedule, EmailConfig } from '@heartbeat/shared';
+
+const DB_FILE_PATH = '/tmp/heartbeat_local_store.json';
 
 export interface StorageAdapter {
   getProjects(enabledOnly?: boolean): Promise<Project[]>;
@@ -34,38 +37,9 @@ export interface StorageAdapter {
 // In-Memory fallback store for local development or when Supabase keys are not set
 class InMemoryStore implements StorageAdapter {
   private projects: Project[] = [];
-  private dbFilePath = '/tmp/heartbeat_projects.json';
-
-  constructor() {
-    this.loadFromDisk();
-  }
-
-  private loadFromDisk() {
-    try {
-      const fs = (globalThis as any).process ? require('node:fs') : null;
-      if (fs && fs.existsSync(this.dbFilePath)) {
-        const raw = fs.readFileSync(this.dbFilePath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          this.projects = parsed;
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  private saveToDisk() {
-    try {
-      const fs = (globalThis as any).process ? require('node:fs') : null;
-      if (fs) {
-        fs.writeFileSync(this.dbFilePath, JSON.stringify(this.projects, null, 2), 'utf-8');
-      }
-    } catch {
-      // ignore
-    }
-  }
-
+  private runs: HeartbeatRun[] = [];
+  private results: HeartbeatResult[] = [];
+  private activity: ActivityLog[] = [];
   private schedules: Schedule[] = [
     {
       id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -77,22 +51,6 @@ class InMemoryStore implements StorageAdapter {
       updated_at: new Date().toISOString(),
     },
   ];
-
-  private runs: HeartbeatRun[] = [];
-
-  private results: HeartbeatResult[] = [];
-
-  private activity: ActivityLog[] = [
-    {
-      id: 'act-1',
-      action: 'system.bootstrap',
-      resource_type: 'system',
-      outcome: 'success',
-      metadata: { message: 'Heartbeat Manager initialized. Ready for project registration.' },
-      created_at: new Date().toISOString(),
-    },
-  ];
-
   private deployments: WorkerDeployment[] = [
     {
       id: 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380e55',
@@ -104,6 +62,57 @@ class InMemoryStore implements StorageAdapter {
       cron_schedule: '30 3 * * SUN',
     },
   ];
+  private emailConfig: EmailConfig = {
+    enabled: false,
+    provider: 'resend',
+    api_key: null,
+    from_email: 'Heartbeat Alerts <onboarding@resend.dev>',
+    to_emails: ['admin@example.com'],
+    notify_on_failure: true,
+    notify_on_scheduled_summary: true,
+    webhook_url: null,
+  };
+
+  private dbFilePath = DB_FILE_PATH;
+
+  constructor() {
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk() {
+    try {
+      if (fs && fs.existsSync && fs.existsSync(this.dbFilePath)) {
+        const raw = fs.readFileSync(this.dbFilePath, 'utf-8');
+        const data = JSON.parse(raw);
+        if (data.projects && Array.isArray(data.projects)) this.projects = data.projects;
+        if (data.runs && Array.isArray(data.runs)) this.runs = data.runs;
+        if (data.results && Array.isArray(data.results)) this.results = data.results;
+        if (data.activity && Array.isArray(data.activity)) this.activity = data.activity;
+        if (data.schedules && Array.isArray(data.schedules)) this.schedules = data.schedules;
+        if (data.emailConfig && typeof data.emailConfig === 'object') this.emailConfig = data.emailConfig;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private saveToDisk() {
+    try {
+      if (fs && fs.writeFileSync) {
+        const payload = {
+          projects: this.projects,
+          runs: this.runs,
+          results: this.results,
+          activity: this.activity,
+          schedules: this.schedules,
+          emailConfig: this.emailConfig,
+        };
+        fs.writeFileSync(this.dbFilePath, JSON.stringify(payload, null, 2), 'utf-8');
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   async getProjects(enabledOnly = false): Promise<Project[]> {
     if (enabledOnly) {
@@ -182,6 +191,7 @@ class InMemoryStore implements StorageAdapter {
       ...data,
       updated_at: new Date().toISOString(),
     };
+    this.saveToDisk();
     return this.schedules[idx];
   }
 
@@ -199,6 +209,7 @@ class InMemoryStore implements StorageAdapter {
       created_at: new Date().toISOString(),
     };
     this.runs.unshift(run);
+    this.saveToDisk();
     return run;
   }
 
@@ -206,6 +217,7 @@ class InMemoryStore implements StorageAdapter {
     const idx = this.runs.findIndex((r) => r.id === id);
     if (idx === -1) throw new Error(`Run ${id} not found`);
     this.runs[idx] = { ...this.runs[idx], ...data };
+    this.saveToDisk();
     return this.runs[idx];
   }
 
@@ -236,6 +248,7 @@ class InMemoryStore implements StorageAdapter {
       created_at: new Date().toISOString(),
     };
     this.results.push(res);
+    this.saveToDisk();
     return res;
   }
 
@@ -256,6 +269,7 @@ class InMemoryStore implements StorageAdapter {
       created_at: new Date().toISOString(),
     };
     this.activity.unshift(act);
+    this.saveToDisk();
     return act;
   }
 
@@ -289,23 +303,13 @@ class InMemoryStore implements StorageAdapter {
     return this.deployments.slice(0, limit);
   }
 
-  private emailConfig: EmailConfig = {
-    enabled: false,
-    provider: 'resend',
-    api_key: null,
-    from_email: 'Heartbeat Alerts <onboarding@resend.dev>',
-    to_emails: ['admin@example.com'],
-    notify_on_failure: true,
-    notify_on_scheduled_summary: true,
-    webhook_url: null,
-  };
-
   async getEmailConfig(): Promise<EmailConfig> {
     return { ...this.emailConfig };
   }
 
   async updateEmailConfig(config: Partial<EmailConfig>): Promise<EmailConfig> {
     this.emailConfig = { ...this.emailConfig, ...config };
+    this.saveToDisk();
     return { ...this.emailConfig };
   }
 }

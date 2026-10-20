@@ -24,6 +24,7 @@
   "author": "Heartbeat Manager Team",
   "license": "MIT",
   "devDependencies": {
+    "tsx": "^4.23.15",
     "typescript": "^5.5.4"
   }
 }
