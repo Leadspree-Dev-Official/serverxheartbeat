@@ -43,6 +43,9 @@ export function createApp() {
   app.get('/health', (c) => {
     return c.json({ status: 'ok', service: 'heartbeat-engine', timestamp: new Date().toISOString() });
   });
+  app.get('/api/health', (c) => {
+    return c.json({ status: 'ok', service: 'heartbeat-engine', timestamp: new Date().toISOString() });
+  });
 
   // Embedded Static Assets
   app.get(UI_BUNDLE.jsPath, (c) => {
