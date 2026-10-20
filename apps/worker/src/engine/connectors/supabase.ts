@@ -22,15 +22,19 @@ export class SupabaseConnector extends BaseConnector {
       endpoint = '/rest/v1/';
     }
 
-    const fullUrl = `${baseUrl}${endpoint}`;
+    let fullUrl = `${baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       'Accept': 'application/json',
       ...(project.custom_headers || {}),
     };
 
-    if (authSecret) {
-      headers['apikey'] = authSecret;
-      headers['Authorization'] = `Bearer ${authSecret}`;
+    const cleanSecret = (authSecret || '').replace(/[^\x20-\x7E]/g, '').trim();
+
+    if (cleanSecret) {
+      headers['apikey'] = cleanSecret;
+      headers['Authorization'] = `Bearer ${cleanSecret}`;
+      const sep = fullUrl.includes('?') ? '&' : '?';
+      fullUrl = `${fullUrl}${sep}apikey=${encodeURIComponent(cleanSecret)}`;
     }
 
     return {

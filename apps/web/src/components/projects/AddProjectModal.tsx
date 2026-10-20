@@ -1103,7 +1103,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                       </span>
                     </div>
 
-                    {testResult.http_status === 401 && provider === 'supabase' && (
+                    {testResult.error && (
+                      <div className="text-[11px] text-rose-300 bg-rose-950/40 p-2.5 rounded-lg border border-rose-500/20 font-mono break-all">
+                        {testResult.error}
+                      </div>
+                    )}
+
+                    {testResult.http_status === 401 && provider === 'supabase' && (!authValue || authType === 'none') && (
                       <div className="text-[11px] text-amber-300 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 leading-relaxed">
                         💡 <strong>Missing Supabase API Key:</strong> Supabase's API gateway rejects unauthenticated requests to <code>/rest/v1/</code> with HTTP 401. Click <strong>Back to Step 3 (Auth &amp; Config)</strong>, select <strong>API Key (apikey header)</strong>, and paste your <code>anon</code> public key from <strong>Supabase Dashboard → Project Settings → API</strong>.
                       </div>
