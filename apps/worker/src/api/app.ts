@@ -16,6 +16,7 @@ import { executeHeartbeatBatch } from '../engine/runner';
 import { getConnector } from '../engine/connectors';
 import { validateUrlForSSRF } from '../engine/ssrf';
 import { maskSecret, sanitizeErrorMessage } from '../services/crypto';
+import { UI_BUNDLE } from './ui_bundle';
 
 export type Bindings = {
   ENVIRONMENT?: string;
@@ -42,25 +43,26 @@ export function createApp() {
     return c.json({ status: 'ok', service: 'heartbeat-engine', timestamp: new Date().toISOString() });
   });
 
-  // Root landing redirect to Dashboard UI
+  // Embedded Static Assets
+  app.get(UI_BUNDLE.jsPath, (c) => {
+    return c.text(UI_BUNDLE.jsContent, 200, {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+  });
+
+  app.get(UI_BUNDLE.cssPath, (c) => {
+    return c.text(UI_BUNDLE.cssContent, 200, {
+      'Content-Type': 'text/css; charset=utf-8',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+  });
+
+  // Root and SPA route fallback
   app.get('/', (c) => {
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta http-equiv="refresh" content="0; url=http://localhost:3000/">
-          <title>Heartbeat Manager</title>
-        </head>
-        <body style="font-family: system-ui, -apple-system, sans-serif; background: #020617; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-          <div style="text-align: center; padding: 24px; border: 1px solid #1e293b; border-radius: 16px; background: #0f172a;">
-            <h2 style="margin: 0 0 8px 0; color: #10b981;">Heartbeat Engine Active</h2>
-            <p style="color: #94a3b8; margin: 0 0 16px 0;">Opening Web Dashboard at <a href="http://localhost:3000/" style="color: #34d399; font-weight: bold;">http://localhost:3000</a>...</p>
-            <script>window.location.href = "http://localhost:3000/";</script>
-          </div>
-        </body>
-      </html>
-    `);
+    return c.html(UI_BUNDLE.html, 200, {
+      'Content-Type': 'text/html; charset=utf-8',
+    });
   });
 
   // =========================================================================
@@ -477,6 +479,17 @@ export function createApp() {
     const limit = parseInt(c.req.query('limit') || '20', 10);
     const deployments = await storage.getDeployments(limit);
     return c.json(deployments);
+  });
+
+  // Client-side SPA fallback for non-API routes
+  app.get('*', (c) => {
+    const p = c.req.path;
+    if (p.startsWith('/api') || p === '/health') {
+      return c.notFound();
+    }
+    return c.html(UI_BUNDLE.html, 200, {
+      'Content-Type': 'text/html; charset=utf-8',
+    });
   });
 
   return app;
