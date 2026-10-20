@@ -64,7 +64,7 @@ export class EmailService {
             <!-- Header -->
             <div style="padding: 24px; background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff;">
               <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #34d399;">
-                Heartbeat Manager • Cloud Infrastructure
+                ServerXHeartBeat • Cloud Infrastructure
               </div>
               <h1 style="margin: 8px 0 0 0; font-size: 20px; font-weight: 700;">
                 Heartbeat Execution Report
@@ -155,7 +155,7 @@ export class EmailService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: from_email || 'Heartbeat Manager <onboarding@resend.dev>',
+            from: from_email || 'ServerXHeartBeat <onboarding@resend.dev>',
             to: to_emails,
             subject,
             html: htmlContent,

@@ -529,7 +529,7 @@ export function createApp() {
     const emailService = new EmailService(testConfig);
     const testHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; background: #ffffff; color: #0f172a; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #10b981; margin-top: 0; font-size: 18px;">Heartbeat Manager • Test Email</h2>
+        <h2 style="color: #10b981; margin-top: 0; font-size: 18px;">ServerXHeartBeat • Test Email</h2>
         <p style="font-size: 13px; color: #334155; line-height: 1.5;">This is a test notification confirming your email alerting configuration is active and working properly.</p>
         <div style="background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 12px; font-family: monospace; border: 1px solid #e2e8f0; margin: 16px 0;">
           <div>Provider: ${testConfig.provider.toUpperCase()}</div>
@@ -537,12 +537,12 @@ export function createApp() {
           <div>To: ${testConfig.to_emails?.join(', ') || 'None'}</div>
           <div>Time: ${new Date().toISOString()}</div>
         </div>
-        <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Heartbeat Manager • Cloud Infrastructure Monitoring</p>
+        <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">ServerXHeartBeat • Cloud Infrastructure Monitoring</p>
       </div>
     `;
 
     const res = await emailService.sendReport(
-      '[Heartbeat Manager] Test Notification',
+      '[ServerXHeartBeat] Test Notification',
       testHtml
     );
 

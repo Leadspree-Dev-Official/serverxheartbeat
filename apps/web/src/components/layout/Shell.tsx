@@ -71,7 +71,7 @@ export const Shell: React.FC<ShellProps> = ({
             </div>
             <div>
               <h1 className="font-bold text-base tracking-tight text-white flex items-center gap-1.5">
-                Heartbeat <span className="text-emerald-400 text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">CF</span>
+                ServerXHeartBeat <span className="text-emerald-400 text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">CF</span>
               </h1>
               <p className="text-xs text-slate-400">Cloud Infrastructure Monitor</p>
             </div>

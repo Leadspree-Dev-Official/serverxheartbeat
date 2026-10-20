@@ -7,7 +7,7 @@ const PORT = 3000;
 const app = createApp();
 
 console.log('----------------------------------------------------');
-console.log(' Starting Heartbeat Manager Standalone Native Server');
+console.log(' Starting ServerXHeartBeat Standalone Native Server');
 console.log(` Port: http://0.0.0.0:${PORT}`);
 console.log('----------------------------------------------------');
 

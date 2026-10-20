@@ -38,7 +38,7 @@ export const ENGINE_CONFIG = {
   MAX_RETRY_COUNT: 5,
   MAX_CONCURRENCY: 5,
   MAX_RESPONSE_BODY_BYTES: 64 * 1024, // 64KB max body read
-  USER_AGENT: 'HeartbeatManager/1.0 (Cloudflare Worker Infrastructure Monitor)',
+  USER_AGENT: 'ServerXHeartBeat/1.0 (Cloudflare Worker Infrastructure Monitor)',
 } as const;
 
 export const DISALLOWED_IP_RANGES = [
