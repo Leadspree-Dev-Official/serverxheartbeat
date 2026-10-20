@@ -34,6 +34,37 @@ export interface StorageAdapter {
 // In-Memory fallback store for local development or when Supabase keys are not set
 class InMemoryStore implements StorageAdapter {
   private projects: Project[] = [];
+  private dbFilePath = '/tmp/heartbeat_projects.json';
+
+  constructor() {
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk() {
+    try {
+      const fs = (globalThis as any).process ? require('node:fs') : null;
+      if (fs && fs.existsSync(this.dbFilePath)) {
+        const raw = fs.readFileSync(this.dbFilePath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.projects = parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private saveToDisk() {
+    try {
+      const fs = (globalThis as any).process ? require('node:fs') : null;
+      if (fs) {
+        fs.writeFileSync(this.dbFilePath, JSON.stringify(this.projects, null, 2), 'utf-8');
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   private schedules: Schedule[] = [
     {
@@ -112,6 +143,7 @@ class InMemoryStore implements StorageAdapter {
       updated_at: new Date().toISOString(),
     };
     this.projects.push(project);
+    this.saveToDisk();
     return project;
   }
 
@@ -123,12 +155,14 @@ class InMemoryStore implements StorageAdapter {
       ...data,
       updated_at: new Date().toISOString(),
     };
+    this.saveToDisk();
     return this.projects[idx];
   }
 
   async deleteProject(id: string): Promise<boolean> {
     const initialLen = this.projects.length;
     this.projects = this.projects.filter((p) => p.id !== id);
+    this.saveToDisk();
     return this.projects.length < initialLen;
   }
 
