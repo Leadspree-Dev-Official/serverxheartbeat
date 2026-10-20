@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "heartbeat-engine",
+  "account_id": "cf7e5f7d3d0906f6cb1c5c16ea306627",
   "main": "src/index.ts",
   "compatibility_date": "2024-09-25",
   "compatibility_flags": ["nodejs_compat"],
