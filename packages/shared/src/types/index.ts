@@ -23,6 +23,11 @@ export interface Project {
   timeout_ms: number;
   retry_count: number;
   schedule_id?: string | null;
+  cron_expression?: string;
+  schedule_timezone?: string;
+  schedule_days?: string[];
+  schedule_hours?: number[];
+  schedule_minutes?: number;
   enabled: boolean;
   last_checked_at?: string | null;
   last_successful_at?: string | null;

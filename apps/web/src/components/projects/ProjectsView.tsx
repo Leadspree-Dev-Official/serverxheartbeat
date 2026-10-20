@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  Calendar,
   CheckCircle2,
+  Clock,
   Copy,
   Edit2,
   Filter,
@@ -226,6 +228,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, onRefresh 
                 <th className="py-3 px-3">Environment</th>
                 <th className="py-3 px-3">Status</th>
                 <th className="py-3 px-3">Latency</th>
+                <th className="py-3 px-3">Schedule</th>
                 <th className="py-3 px-3">Enabled</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -261,6 +264,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, onRefresh 
                     </td>
                     <td className="py-3.5 px-3 whitespace-nowrap font-mono text-slate-300">
                       {project.last_response_time_ms ? `${project.last_response_time_ms}ms` : '—'}
+                    </td>
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                        <Calendar className="w-3 h-3 text-emerald-400" />
+                        <span>{project.cron_expression || '30 3 * * SUN'}</span>
+                      </span>
                     </td>
                     <td className="py-3.5 px-3 whitespace-nowrap">
                       <label className="relative inline-flex items-center cursor-pointer">

@@ -27,6 +27,11 @@ export const createProjectSchema = z.object({
   timeout_ms: z.number().int().min(1000).max(60000).default(10000),
   retry_count: z.number().int().min(0).max(5).default(2),
   schedule_id: z.string().uuid().optional().nullable(),
+  cron_expression: z.string().default('30 3 * * SUN'),
+  schedule_timezone: z.string().default('Asia/Kolkata'),
+  schedule_days: z.array(z.string()).default(['SUN']),
+  schedule_hours: z.array(z.number().int()).default([9]),
+  schedule_minutes: z.number().int().default(0),
   enabled: z.boolean().default(true),
 });
 

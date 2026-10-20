@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import {
+  Calendar,
   Check,
   ChevronRight,
+  Clock,
   Database,
   Globe,
   Lock,
   Play,
+  Plus,
   RotateCw,
   Server,
   ShieldCheck,
+  Trash2,
   X,
   AlertTriangle,
   CheckCircle2,
@@ -22,6 +26,16 @@ interface AddProjectModalProps {
   onProjectSaved: () => void;
   initialProject?: Project | null;
 }
+
+const ALL_DAYS = [
+  { id: 'SUN', label: 'Sun', name: 'Sunday' },
+  { id: 'MON', label: 'Mon', name: 'Monday' },
+  { id: 'TUE', label: 'Tue', name: 'Tuesday' },
+  { id: 'WED', label: 'Wed', name: 'Wednesday' },
+  { id: 'THU', label: 'Thu', name: 'Thursday' },
+  { id: 'FRI', label: 'Fri', name: 'Friday' },
+  { id: 'SAT', label: 'Sat', name: 'Saturday' },
+];
 
 export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   isOpen,
@@ -51,7 +65,110 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [retryCount, setRetryCount] = useState<number>(initialProject?.retry_count ?? 2);
   const [enabled, setEnabled] = useState<boolean>(initialProject ? initialProject.enabled : true);
 
+  // Scheduling State
+  const [scheduleMode, setScheduleMode] = useState<'default' | 'custom'>(
+    initialProject?.cron_expression && initialProject.cron_expression !== '30 3 * * SUN'
+      ? 'custom'
+      : 'default'
+  );
+  const [scheduleDays, setScheduleDays] = useState<string[]>(
+    initialProject?.schedule_days && initialProject.schedule_days.length > 0
+      ? initialProject.schedule_days
+      : ['SUN']
+  );
+  const [scheduleHours, setScheduleHours] = useState<number[]>(
+    initialProject?.schedule_hours && initialProject.schedule_hours.length > 0
+      ? initialProject.schedule_hours
+      : [9]
+  );
+  const [scheduleMinutes, setScheduleMinutes] = useState<number>(
+    initialProject?.schedule_minutes ?? 0
+  );
+  const [scheduleTimezone, setScheduleTimezone] = useState<string>(
+    initialProject?.schedule_timezone || 'Asia/Kolkata'
+  );
+  const [newTimeHour, setNewTimeHour] = useState<number>(21);
+
   if (!isOpen) return null;
+
+  // Format 24h to 12h display
+  const formatHourLabel = (h: number, m: number = 0) => {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    const displayM = m.toString().padStart(2, '0');
+    return `${displayH}:${displayM} ${period}`;
+  };
+
+  // Compute UTC Cron string and plain description
+  const computeScheduleDetails = () => {
+    if (scheduleMode === 'default') {
+      return {
+        cron: '30 3 * * SUN',
+        human: 'Runs every Sunday at 9:00 AM IST (03:30 AM UTC)',
+        isDefault: true,
+      };
+    }
+
+    const daysPart = scheduleDays.length === 7 || scheduleDays.length === 0 ? '*' : scheduleDays.join(',');
+    const sortedHours = [...scheduleHours].sort((a, b) => a - b);
+
+    // Calculate UTC hours and minutes
+    let utcHList: number[] = [];
+    let utcM = scheduleMinutes;
+
+    if (scheduleTimezone === 'Asia/Kolkata') {
+      // IST is UTC+05:30
+      for (const h of sortedHours) {
+        let totalMin = h * 60 + scheduleMinutes - 330;
+        if (totalMin < 0) totalMin += 1440;
+        utcHList.push(Math.floor(totalMin / 60));
+        utcM = totalMin % 60;
+      }
+    } else {
+      utcHList = sortedHours;
+    }
+
+    // Deduplicate
+    utcHList = Array.from(new Set(utcHList)).sort((a, b) => a - b);
+    const cron = `${utcM} ${utcHList.join(',')} * * ${daysPart}`;
+
+    const daysText =
+      scheduleDays.length === 7
+        ? 'Every day (Daily)'
+        : scheduleDays.map((d) => ALL_DAYS.find((item) => item.id === d)?.name || d).join(', ');
+
+    const timesText = sortedHours.map((h) => formatHourLabel(h, scheduleMinutes)).join(', ');
+
+    return {
+      cron,
+      human: `Runs ${daysText} at ${timesText} (${scheduleTimezone})`,
+      isDefault: false,
+    };
+  };
+
+  const currentSchedule = computeScheduleDetails();
+
+  const handleToggleDay = (dayId: string) => {
+    if (scheduleDays.includes(dayId)) {
+      if (scheduleDays.length > 1) {
+        setScheduleDays(scheduleDays.filter((d) => d !== dayId));
+      }
+    } else {
+      setScheduleDays([...scheduleDays, dayId]);
+    }
+  };
+
+  const handleAddHour = () => {
+    if (!scheduleHours.includes(newTimeHour)) {
+      setScheduleHours([...scheduleHours, newTimeHour].sort((a, b) => a - b));
+    }
+  };
+
+  const handleRemoveHour = (h: number) => {
+    if (scheduleHours.length > 1) {
+      setScheduleHours(scheduleHours.filter((item) => item !== h));
+    }
+  };
 
   const handleProviderSelect = (selected: ProviderType) => {
     setProvider(selected);
@@ -103,37 +220,31 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       .map((c) => parseInt(c.trim(), 10))
       .filter((n) => !isNaN(n));
 
+    const projectPayload = {
+      name,
+      provider,
+      environment,
+      base_url: baseUrl,
+      endpoint_path: endpointPath,
+      http_method: httpMethod,
+      auth_type: authType,
+      auth_value: authValue || undefined,
+      expected_status_codes: codes.length > 0 ? codes : [200, 204],
+      timeout_ms: timeoutMs,
+      retry_count: retryCount,
+      enabled,
+      cron_expression: currentSchedule.cron,
+      schedule_timezone: scheduleTimezone,
+      schedule_days: scheduleDays,
+      schedule_hours: scheduleHours,
+      schedule_minutes: scheduleMinutes,
+    };
+
     try {
       if (initialProject) {
-        await api.updateProject(initialProject.id, {
-          name,
-          provider,
-          environment,
-          base_url: baseUrl,
-          endpoint_path: endpointPath,
-          http_method: httpMethod,
-          auth_type: authType,
-          auth_value: authValue || undefined,
-          expected_status_codes: codes.length > 0 ? codes : [200, 204],
-          timeout_ms: timeoutMs,
-          retry_count: retryCount,
-          enabled,
-        });
+        await api.updateProject(initialProject.id, projectPayload);
       } else {
-        await api.createProject({
-          name,
-          provider,
-          environment,
-          base_url: baseUrl,
-          endpoint_path: endpointPath,
-          http_method: httpMethod,
-          auth_type: authType,
-          auth_value: authValue || undefined,
-          expected_status_codes: codes.length > 0 ? codes : [200, 204],
-          timeout_ms: timeoutMs,
-          retry_count: retryCount,
-          enabled,
-        });
+        await api.createProject(projectPayload);
       }
       onProjectSaved();
       onClose();
@@ -154,7 +265,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <div>
@@ -162,7 +273,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               {initialProject ? 'Edit Project Configuration' : 'Register New Project'}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Guided 5-step setup for scheduled weekly Cloudflare health checks.
+              Guided 5-step setup for scheduled health checks on Cloudflare Workers edge.
             </p>
           </div>
           <button
@@ -463,32 +574,233 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
             </div>
           )}
 
-          {/* STEP 4: SCHEDULE */}
+          {/* STEP 4: SCHEDULE (DEFAULT SUNDAY 9:00 AM OR CUSTOM MULTI-SCHEDULE) */}
           {step === 4 && (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold text-sm text-white">Default Weekly Sunday Schedule</h4>
-                    <p className="text-xs text-slate-400">
-                      Standard cron execution on Cloudflare Workers edge.
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-2">
+                  Select Execution Schedule
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  {/* Default Option */}
+                  <div
+                    onClick={() => setScheduleMode('default')}
+                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all ${
+                      scheduleMode === 'default'
+                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-md shadow-emerald-500/5'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-semibold text-sm text-slate-200">Default Sunday 9:00 AM</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        30 3 * * SUN
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Recommended baseline check every Sunday at 9:00 AM IST (03:30 UTC).
                     </p>
                   </div>
-                  <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono text-xs border border-emerald-500/20">
-                    30 3 * * SUN
-                  </span>
-                </div>
-                <div className="text-xs text-slate-400 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Runs every Sunday at 9:00 AM IST (03:30 AM UTC)</span>
+
+                  {/* Custom Option */}
+                  <div
+                    onClick={() => setScheduleMode('custom')}
+                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all ${
+                      scheduleMode === 'custom'
+                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-md shadow-emerald-500/5'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-semibold text-sm text-slate-200">Custom Multi-Schedule</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                        Flexible
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Configure custom days, multiple run times per day, and custom intervals.
+                    </p>
+                  </div>
                 </div>
               </div>
 
+              {/* CUSTOM SCHEDULER PANEL */}
+              {scheduleMode === 'custom' && (
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4 animate-fadeIn">
+                  {/* Days Multi-Select */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-semibold text-slate-300">
+                        Select Execution Days ({scheduleDays.length} selected)
+                      </label>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDays(['SUN'])}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                        >
+                          Sunday
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDays(['SUN', 'THU'])}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                        >
+                          2x Week
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDays(['MON', 'TUE', 'WED', 'THU', 'FRI'])}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                        >
+                          Weekdays
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDays(ALL_DAYS.map((d) => d.id))}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                        >
+                          Daily
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {ALL_DAYS.map((day) => {
+                        const isSelected = scheduleDays.includes(day.id);
+                        return (
+                          <button
+                            key={day.id}
+                            type="button"
+                            onClick={() => handleToggleDay(day.id)}
+                            className={`py-2 rounded-lg text-xs font-bold transition-all border ${
+                              isSelected
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                            }`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Multiple Run Times per Day */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-2">
+                      Execution Times ({scheduleHours.length} scheduled per day)
+                    </label>
+
+                    {/* Chips of scheduled hours */}
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      {scheduleHours.map((h) => (
+                        <span
+                          key={h}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-semibold bg-slate-900 border border-slate-700 text-slate-200"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{formatHourLabel(h, scheduleMinutes)}</span>
+                          {scheduleHours.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveHour(h)}
+                              className="text-slate-400 hover:text-rose-400 ml-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Add another time control */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-slate-400">Add Time:</span>
+                        <select
+                          value={newTimeHour}
+                          onChange={(e) => setNewTimeHour(parseInt(e.target.value, 10))}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                        >
+                          {Array.from({ length: 24 }).map((_, i) => (
+                            <option key={i} value={i}>
+                              {formatHourLabel(i, scheduleMinutes)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddHour}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-emerald-400 flex items-center gap-1 border border-slate-700 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Run Time</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Timezone Selector */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Timezone
+                      </label>
+                      <select
+                        value={scheduleTimezone}
+                        onChange={(e) => setScheduleTimezone(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="Asia/Kolkata">Asia/Kolkata (IST - UTC+05:30)</option>
+                        <option value="UTC">UTC (Universal Time)</option>
+                        <option value="America/New_York">America/New_York (EST - UTC-05:00)</option>
+                        <option value="Europe/London">Europe/London (GMT/BST)</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (PST - UTC-08:00)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Minute of the Hour
+                      </label>
+                      <select
+                        value={scheduleMinutes}
+                        onChange={(e) => setScheduleMinutes(parseInt(e.target.value, 10))}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value={0}>:00 (Top of the hour)</option>
+                        <option value={15}>:15</option>
+                        <option value={30}>:30</option>
+                        <option value={45}>:45</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* LIVE CALCULATED SCHEDULE SUMMARY */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-medium">Calculated Cloudflare Cron:</span>
+                  <span className="px-2.5 py-0.5 rounded font-mono font-bold text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    {currentSchedule.cron}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{currentSchedule.human}</span>
+                </div>
+              </div>
+
+              {/* Enable / Pause Toggle */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-white">Participate in Scheduled Runs</div>
+                  <div className="text-sm font-semibold text-white">Enable Scheduled Runs</div>
                   <div className="text-xs text-slate-400">
-                    Include this project in the weekly automatic heartbeat check.
+                    Participate in automatic health checks on this schedule.
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -537,6 +849,11 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
                 <div className="text-xs font-mono text-slate-400 bg-slate-900 p-2.5 rounded-lg border border-slate-800 truncate">
                   {httpMethod} {baseUrl}{endpointPath}
+                </div>
+
+                <div className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Scheduled for: <strong className="text-slate-200">{currentSchedule.human}</strong></span>
                 </div>
 
                 {testResult && (

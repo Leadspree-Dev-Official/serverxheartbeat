@@ -6,21 +6,9 @@ const app = createApp();
 
 export default {
   /**
-   * HTTP Fetch Handler for API Requests & UI Static Assets
+   * HTTP Fetch Handler for API Requests & UI
    */
-  async fetch(request: Request, env: Bindings & { ASSETS?: Fetcher }, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-
-    // API endpoints and health checks are handled by Hono
-    if (url.pathname.startsWith('/api') || url.pathname === '/health') {
-      return app.fetch(request, env, ctx);
-    }
-
-    // Static assets (React Dashboard SPA) handled by Cloudflare Workers Assets
-    if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
-    }
-
+  async fetch(request: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
     return app.fetch(request, env, ctx);
   },
 

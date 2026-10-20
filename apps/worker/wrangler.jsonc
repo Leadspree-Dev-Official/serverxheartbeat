@@ -7,11 +7,6 @@
   "triggers": {
     "crons": ["30 3 * * SUN"]
   },
-  "assets": {
-    "directory": "../web/dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
-  },
   "vars": {
     "ENVIRONMENT": "production",
     "WORKER_NAME": "heartbeat-engine",
