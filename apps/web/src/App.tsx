@@ -6,6 +6,7 @@ import { JobsView } from './components/jobs/JobsView';
 import { ActivityView } from './components/activity/ActivityView';
 import { WorkerView } from './components/worker/WorkerView';
 import { SchedulesView } from './components/schedules/SchedulesView';
+import { GuidesView } from './components/guides/GuidesView';
 import { SettingsView } from './components/settings/SettingsView';
 import { api } from './lib/api';
 import {
@@ -110,6 +111,10 @@ export const App: React.FC = () => {
           projects={projects}
           onRefresh={loadAllData}
         />
+      )}
+
+      {currentTab === 'guides' && (
+        <GuidesView onNavigateAddProject={() => setCurrentTab('projects')} />
       )}
 
       {currentTab === 'settings' && <SettingsView />}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Activity,
+  BookOpen,
   Calendar,
   Clock,
   Cpu,
@@ -14,7 +15,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-export type TabType = 'dashboard' | 'projects' | 'jobs' | 'activity' | 'worker' | 'schedules' | 'settings';
+export type TabType = 'dashboard' | 'projects' | 'jobs' | 'activity' | 'worker' | 'schedules' | 'guides' | 'settings';
 
 interface ShellProps {
   currentTab: TabType;
@@ -56,6 +57,7 @@ export const Shell: React.FC<ShellProps> = ({
     { id: 'activity' as TabType, label: 'Activity Logs', icon: Clock },
     { id: 'worker' as TabType, label: 'Worker Management', icon: Cpu },
     { id: 'schedules' as TabType, label: 'Schedules', icon: Calendar },
+    { id: 'guides' as TabType, label: 'Setup Guides', icon: BookOpen },
     { id: 'settings' as TabType, label: 'Settings', icon: Settings },
   ];
 
