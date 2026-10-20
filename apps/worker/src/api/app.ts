@@ -290,15 +290,60 @@ export function createApp() {
     }
 
     const connector = getConnector(project.provider);
+    const startTime = new Date().toISOString();
     const result = await connector.execute(project, project.secret_ref || undefined, {
       allowHttp: c.env?.ENVIRONMENT === 'development',
     });
+
+    const isSuccess = result.status === 'success';
+
+    // Record as an auditable job run in Jobs & History
+    try {
+      const run = await storage.createRun({
+        trigger_type: 'manual',
+        total_projects: 1,
+        status: 'running',
+        started_at: startTime,
+      });
+
+      await storage.createResult({
+        run_id: run.id,
+        project_id: project.id,
+        project_name: project.name,
+        provider: project.provider,
+        http_status: result.httpStatus || null,
+        response_time_ms: result.responseTimeMs,
+        retry_attempts: 0,
+        status: result.status,
+        error_summary: result.error ? sanitizeErrorMessage(result.error) : null,
+      });
+
+      await storage.updateRun(run.id, {
+        finished_at: new Date().toISOString(),
+        status: isSuccess ? 'success' : 'failed',
+        total_projects: 1,
+        successful_count: isSuccess ? 1 : 0,
+        failed_count: isSuccess ? 0 : 1,
+        skipped_count: 0,
+        error_summary: result.error ? sanitizeErrorMessage(result.error) : null,
+      });
+
+      await storage.updateProject(project.id, {
+        last_checked_at: new Date().toISOString(),
+        last_status: isSuccess ? 'healthy' : (result.status === 'warning' ? 'warning' : 'failed'),
+        last_response_time_ms: result.responseTimeMs,
+        last_error: result.error ? sanitizeErrorMessage(result.error) : null,
+        ...(isSuccess ? { last_successful_at: new Date().toISOString() } : {}),
+      });
+    } catch (jobErr) {
+      console.error('[API test] Error recording job run:', jobErr);
+    }
 
     await storage.logActivity({
       action: 'endpoint.manual_test',
       resource_type: 'project',
       resource_id: id,
-      outcome: result.status === 'success' ? 'success' : 'failed',
+      outcome: isSuccess ? 'success' : 'failed',
       metadata: {
         http_status: result.httpStatus,
         response_time_ms: result.responseTimeMs,
