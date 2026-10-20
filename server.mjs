@@ -29753,6 +29753,275 @@ var SupabaseStore = class {
     return updated;
   }
 };
+var CloudflareKVStore = class {
+  constructor(kv) {
+    this.kv = kv;
+  }
+  async getJson(key, defaultValue) {
+    try {
+      const data = await this.kv.get(key, "json");
+      return data !== null && data !== void 0 ? data : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+  async putJson(key, value) {
+    try {
+      await this.kv.put(key, JSON.stringify(value));
+    } catch (e) {
+      console.error(`[KV] Failed to put key "${key}":`, e);
+    }
+  }
+  async getProjects(enabledOnly = false) {
+    const list = await this.getJson("hb_projects", []);
+    if (enabledOnly) {
+      return list.filter((p) => p.enabled);
+    }
+    return list;
+  }
+  async getProjectById(id) {
+    const list = await this.getProjects();
+    return list.find((p) => p.id === id) || null;
+  }
+  async createProject(data) {
+    const list = await this.getProjects();
+    const project = {
+      id: crypto.randomUUID(),
+      name: data.name || "Unnamed Project",
+      provider: data.provider || "generic",
+      environment: data.environment || "production",
+      base_url: data.base_url || "",
+      endpoint_path: data.endpoint_path || "",
+      http_method: data.http_method || "GET",
+      auth_type: data.auth_type || "none",
+      secret_ref: data.secret_ref || null,
+      custom_headers: data.custom_headers || {},
+      expected_status_codes: data.expected_status_codes || [200, 204],
+      timeout_ms: data.timeout_ms || 1e4,
+      retry_count: data.retry_count || 2,
+      schedule_id: data.schedule_id || "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      cron_expression: data.cron_expression || "30 3 * * SUN",
+      schedule_timezone: data.schedule_timezone || "Asia/Kolkata",
+      schedule_days: data.schedule_days || ["SUN"],
+      schedule_hours: data.schedule_hours || [9],
+      schedule_minutes: data.schedule_minutes ?? 0,
+      enabled: data.enabled ?? true,
+      last_status: "unknown",
+      created_at: (/* @__PURE__ */ new Date()).toISOString(),
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    list.unshift(project);
+    await this.putJson("hb_projects", list);
+    await this.logActivity({
+      action: "project.create",
+      resource_type: "project",
+      resource_id: project.id,
+      outcome: "success",
+      metadata: { name: project.name, provider: project.provider }
+    });
+    return project;
+  }
+  async updateProject(id, data) {
+    const list = await this.getProjects();
+    const idx = list.findIndex((p) => p.id === id);
+    if (idx === -1) throw new Error(`Project ${id} not found`);
+    list[idx] = {
+      ...list[idx],
+      ...data,
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.putJson("hb_projects", list);
+    return list[idx];
+  }
+  async deleteProject(id) {
+    const list = await this.getProjects();
+    const filtered = list.filter((p) => p.id !== id);
+    await this.putJson("hb_projects", filtered);
+    await this.logActivity({
+      action: "project.delete",
+      resource_type: "project",
+      resource_id: id,
+      outcome: "success"
+    });
+    return filtered.length < list.length;
+  }
+  async getSchedules() {
+    const defaultSchedule = [
+      {
+        id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+        name: "Default Weekly Sunday Run",
+        cron_expression: "30 3 * * SUN",
+        timezone: "Asia/Kolkata",
+        enabled: true,
+        created_at: "2026-10-20T14:48:03.831Z",
+        updated_at: "2026-10-20T14:48:03.831Z"
+      }
+    ];
+    return this.getJson("hb_schedules", defaultSchedule);
+  }
+  async getScheduleById(id) {
+    const list = await this.getSchedules();
+    return list.find((s) => s.id === id) || null;
+  }
+  async updateSchedule(id, data) {
+    const list = await this.getSchedules();
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) throw new Error(`Schedule ${id} not found`);
+    list[idx] = {
+      ...list[idx],
+      ...data,
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.putJson("hb_schedules", list);
+    return list[idx];
+  }
+  async createRun(data) {
+    const list = await this.getRuns(100);
+    const run = {
+      id: crypto.randomUUID(),
+      trigger_type: data.trigger_type || "manual",
+      started_at: (/* @__PURE__ */ new Date()).toISOString(),
+      total_projects: data.total_projects || 0,
+      successful_count: data.successful_count || 0,
+      failed_count: data.failed_count || 0,
+      skipped_count: data.skipped_count || 0,
+      status: data.status || "running",
+      error_summary: data.error_summary || null,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    list.unshift(run);
+    await this.putJson("hb_runs", list.slice(0, 100));
+    return run;
+  }
+  async updateRun(id, data) {
+    const list = await this.getRuns(100);
+    const idx = list.findIndex((r) => r.id === id);
+    if (idx === -1) throw new Error(`Run ${id} not found`);
+    list[idx] = { ...list[idx], ...data };
+    await this.putJson("hb_runs", list);
+    return list[idx];
+  }
+  async getRuns(limit = 50) {
+    const list = await this.getJson("hb_runs", []);
+    return list.slice(0, limit);
+  }
+  async getRunById(id) {
+    const list = await this.getRuns(100);
+    const run = list.find((r) => r.id === id);
+    if (!run) return null;
+    const results = await this.getResultsForRun(id);
+    return { ...run, results };
+  }
+  async createResult(data) {
+    const list = await this.getJson("hb_results", []);
+    const res = {
+      id: crypto.randomUUID(),
+      run_id: data.run_id,
+      project_id: data.project_id,
+      project_name: data.project_name,
+      provider: data.provider,
+      checked_at: (/* @__PURE__ */ new Date()).toISOString(),
+      http_status: data.http_status,
+      response_time_ms: data.response_time_ms || 0,
+      retry_attempts: data.retry_attempts || 0,
+      status: data.status || "failed",
+      error_summary: data.error_summary || null,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    list.unshift(res);
+    await this.putJson("hb_results", list.slice(0, 500));
+    return res;
+  }
+  async getResultsForRun(runId) {
+    const list = await this.getJson("hb_results", []);
+    return list.filter((res) => res.run_id === runId);
+  }
+  async logActivity(data) {
+    const list = await this.getActivityLogs(100);
+    const act = {
+      id: crypto.randomUUID(),
+      actor_id: data.actor_id || null,
+      actor_email: data.actor_email || "admin@heartbeat.local",
+      action: data.action || "unknown",
+      resource_type: data.resource_type || "system",
+      resource_id: data.resource_id || null,
+      outcome: data.outcome || "success",
+      metadata: data.metadata || {},
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    list.unshift(act);
+    await this.putJson("hb_activity", list.slice(0, 100));
+    return act;
+  }
+  async getActivityLogs(limit = 50) {
+    const list = await this.getJson("hb_activity", []);
+    return list.slice(0, limit);
+  }
+  async createDeployment(data) {
+    const list = await this.getDeployments(20);
+    const dep = {
+      id: crypto.randomUUID(),
+      worker_name: data.worker_name || "heartbeat-engine",
+      version: data.version || "v1.0.0",
+      status: data.status || "pending",
+      initiated_by: data.initiated_by || null,
+      started_at: (/* @__PURE__ */ new Date()).toISOString(),
+      cron_schedule: data.cron_schedule || "30 3 * * SUN",
+      error_summary: data.error_summary || null
+    };
+    list.unshift(dep);
+    await this.putJson("hb_deployments", list.slice(0, 50));
+    return dep;
+  }
+  async updateDeployment(id, data) {
+    const list = await this.getDeployments(50);
+    const idx = list.findIndex((d) => d.id === id);
+    if (idx === -1) throw new Error(`Deployment ${id} not found`);
+    list[idx] = { ...list[idx], ...data };
+    await this.putJson("hb_deployments", list);
+    return list[idx];
+  }
+  async getDeployments(limit = 20) {
+    const defaultDeployments = [
+      {
+        id: "e4eebc99-9c0b-4ef8-bb6d-6bb9bd380e55",
+        worker_name: "heartbeat-engine",
+        version: "v1.0.0",
+        status: "successful",
+        started_at: "2026-10-20T17:54:07.057Z",
+        finished_at: "2026-10-20T17:54:07.057Z",
+        cron_schedule: "30 3 * * SUN"
+      }
+    ];
+    const list = await this.getJson("hb_deployments", defaultDeployments);
+    return list.slice(0, limit);
+  }
+  async getEmailConfig() {
+    const defaultConfig = {
+      enabled: false,
+      provider: "resend",
+      api_key: null,
+      from_email: "Heartbeat Alerts <onboarding@resend.dev>",
+      to_emails: ["admin@example.com"],
+      notify_on_failure: true,
+      notify_on_scheduled_summary: true,
+      webhook_url: null
+    };
+    return this.getJson("hb_email_config", defaultConfig);
+  }
+  async updateEmailConfig(config) {
+    const current = await this.getEmailConfig();
+    const updated = { ...current, ...config };
+    await this.putJson("hb_email_config", updated);
+    await this.logActivity({
+      action: "config.email_settings",
+      resource_type: "settings",
+      outcome: "success",
+      metadata: updated
+    });
+    return updated;
+  }
+};
 var inMemorySingleton = new InMemoryStore();
 function getStorage(env) {
   const nodeProcess = globalThis.process;
@@ -29765,9 +30034,11 @@ function getStorage(env) {
       });
       return new SupabaseStore(client);
     } catch (e) {
-      console.warn("Failed to initialize Supabase client, falling back to memory store:", e);
-      return inMemorySingleton;
+      console.warn("Failed to initialize Supabase client, falling back to KV/memory store:", e);
     }
+  }
+  if (env?.HEARTBEAT_KV) {
+    return new CloudflareKVStore(env.HEARTBEAT_KV);
   }
   return inMemorySingleton;
 }

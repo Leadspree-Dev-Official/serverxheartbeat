@@ -27,6 +27,7 @@ export type Bindings = {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
+  HEARTBEAT_KV?: any;
 };
 
 export function createApp() {

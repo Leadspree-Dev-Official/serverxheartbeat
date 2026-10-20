@@ -489,6 +489,298 @@ class SupabaseStore implements StorageAdapter {
   }
 }
 
+// Cloudflare KV Store for edge persistence across 300+ global data centers
+class CloudflareKVStore implements StorageAdapter {
+  constructor(private kv: any) {}
+
+  private async getJson<T>(key: string, defaultValue: T): Promise<T> {
+    try {
+      const data = await this.kv.get(key, 'json');
+      return data !== null && data !== undefined ? (data as T) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  private async putJson(key: string, value: any): Promise<void> {
+    try {
+      await this.kv.put(key, JSON.stringify(value));
+    } catch (e) {
+      console.error(`[KV] Failed to put key "${key}":`, e);
+    }
+  }
+
+  async getProjects(enabledOnly = false): Promise<Project[]> {
+    const list = await this.getJson<Project[]>('hb_projects', []);
+    if (enabledOnly) {
+      return list.filter((p) => p.enabled);
+    }
+    return list;
+  }
+
+  async getProjectById(id: string): Promise<Project | null> {
+    const list = await this.getProjects();
+    return list.find((p) => p.id === id) || null;
+  }
+
+  async createProject(data: Partial<Project>): Promise<Project> {
+    const list = await this.getProjects();
+    const project: Project = {
+      id: crypto.randomUUID(),
+      name: data.name || 'Unnamed Project',
+      provider: data.provider || 'generic',
+      environment: data.environment || 'production',
+      base_url: data.base_url || '',
+      endpoint_path: data.endpoint_path || '',
+      http_method: data.http_method || 'GET',
+      auth_type: data.auth_type || 'none',
+      secret_ref: data.secret_ref || null,
+      custom_headers: data.custom_headers || {},
+      expected_status_codes: data.expected_status_codes || [200, 204],
+      timeout_ms: data.timeout_ms || 10000,
+      retry_count: data.retry_count || 2,
+      schedule_id: data.schedule_id || 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      cron_expression: data.cron_expression || '30 3 * * SUN',
+      schedule_timezone: data.schedule_timezone || 'Asia/Kolkata',
+      schedule_days: data.schedule_days || ['SUN'],
+      schedule_hours: data.schedule_hours || [9],
+      schedule_minutes: data.schedule_minutes ?? 0,
+      enabled: data.enabled ?? true,
+      last_status: 'unknown',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    list.unshift(project);
+    await this.putJson('hb_projects', list);
+    await this.logActivity({
+      action: 'project.create',
+      resource_type: 'project',
+      resource_id: project.id,
+      outcome: 'success',
+      metadata: { name: project.name, provider: project.provider },
+    });
+    return project;
+  }
+
+  async updateProject(id: string, data: Partial<Project>): Promise<Project> {
+    const list = await this.getProjects();
+    const idx = list.findIndex((p) => p.id === id);
+    if (idx === -1) throw new Error(`Project ${id} not found`);
+    list[idx] = {
+      ...list[idx],
+      ...data,
+      updated_at: new Date().toISOString(),
+    };
+    await this.putJson('hb_projects', list);
+    return list[idx];
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    const list = await this.getProjects();
+    const filtered = list.filter((p) => p.id !== id);
+    await this.putJson('hb_projects', filtered);
+    await this.logActivity({
+      action: 'project.delete',
+      resource_type: 'project',
+      resource_id: id,
+      outcome: 'success',
+    });
+    return filtered.length < list.length;
+  }
+
+  async getSchedules(): Promise<Schedule[]> {
+    const defaultSchedule: Schedule[] = [
+      {
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        name: 'Default Weekly Sunday Run',
+        cron_expression: '30 3 * * SUN',
+        timezone: 'Asia/Kolkata',
+        enabled: true,
+        created_at: '2026-10-20T14:48:03.831Z',
+        updated_at: '2026-10-20T14:48:03.831Z',
+      },
+    ];
+    return this.getJson<Schedule[]>('hb_schedules', defaultSchedule);
+  }
+
+  async getScheduleById(id: string): Promise<Schedule | null> {
+    const list = await this.getSchedules();
+    return list.find((s) => s.id === id) || null;
+  }
+
+  async updateSchedule(id: string, data: Partial<Schedule>): Promise<Schedule> {
+    const list = await this.getSchedules();
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) throw new Error(`Schedule ${id} not found`);
+    list[idx] = {
+      ...list[idx],
+      ...data,
+      updated_at: new Date().toISOString(),
+    };
+    await this.putJson('hb_schedules', list);
+    return list[idx];
+  }
+
+  async createRun(data: Partial<HeartbeatRun>): Promise<HeartbeatRun> {
+    const list = await this.getRuns(100);
+    const run: HeartbeatRun = {
+      id: crypto.randomUUID(),
+      trigger_type: data.trigger_type || 'manual',
+      started_at: new Date().toISOString(),
+      total_projects: data.total_projects || 0,
+      successful_count: data.successful_count || 0,
+      failed_count: data.failed_count || 0,
+      skipped_count: data.skipped_count || 0,
+      status: data.status || 'running',
+      error_summary: data.error_summary || null,
+      created_at: new Date().toISOString(),
+    };
+    list.unshift(run);
+    await this.putJson('hb_runs', list.slice(0, 100));
+    return run;
+  }
+
+  async updateRun(id: string, data: Partial<HeartbeatRun>): Promise<HeartbeatRun> {
+    const list = await this.getRuns(100);
+    const idx = list.findIndex((r) => r.id === id);
+    if (idx === -1) throw new Error(`Run ${id} not found`);
+    list[idx] = { ...list[idx], ...data };
+    await this.putJson('hb_runs', list);
+    return list[idx];
+  }
+
+  async getRuns(limit = 50): Promise<HeartbeatRun[]> {
+    const list = await this.getJson<HeartbeatRun[]>('hb_runs', []);
+    return list.slice(0, limit);
+  }
+
+  async getRunById(id: string): Promise<HeartbeatRun | null> {
+    const list = await this.getRuns(100);
+    const run = list.find((r) => r.id === id);
+    if (!run) return null;
+    const results = await this.getResultsForRun(id);
+    return { ...run, results };
+  }
+
+  async createResult(data: Partial<HeartbeatResult>): Promise<HeartbeatResult> {
+    const list = await this.getJson<HeartbeatResult[]>('hb_results', []);
+    const res: HeartbeatResult = {
+      id: crypto.randomUUID(),
+      run_id: data.run_id!,
+      project_id: data.project_id!,
+      project_name: data.project_name,
+      provider: data.provider,
+      checked_at: new Date().toISOString(),
+      http_status: data.http_status,
+      response_time_ms: data.response_time_ms || 0,
+      retry_attempts: data.retry_attempts || 0,
+      status: data.status || 'failed',
+      error_summary: data.error_summary || null,
+      created_at: new Date().toISOString(),
+    };
+    list.unshift(res);
+    await this.putJson('hb_results', list.slice(0, 500));
+    return res;
+  }
+
+  async getResultsForRun(runId: string): Promise<HeartbeatResult[]> {
+    const list = await this.getJson<HeartbeatResult[]>('hb_results', []);
+    return list.filter((res) => res.run_id === runId);
+  }
+
+  async logActivity(data: Partial<ActivityLog>): Promise<ActivityLog> {
+    const list = await this.getActivityLogs(100);
+    const act: ActivityLog = {
+      id: crypto.randomUUID(),
+      actor_id: data.actor_id || null,
+      actor_email: data.actor_email || 'admin@heartbeat.local',
+      action: data.action || 'unknown',
+      resource_type: data.resource_type || 'system',
+      resource_id: data.resource_id || null,
+      outcome: data.outcome || 'success',
+      metadata: data.metadata || {},
+      created_at: new Date().toISOString(),
+    };
+    list.unshift(act);
+    await this.putJson('hb_activity', list.slice(0, 100));
+    return act;
+  }
+
+  async getActivityLogs(limit = 50): Promise<ActivityLog[]> {
+    const list = await this.getJson<ActivityLog[]>('hb_activity', []);
+    return list.slice(0, limit);
+  }
+
+  async createDeployment(data: Partial<WorkerDeployment>): Promise<WorkerDeployment> {
+    const list = await this.getDeployments(20);
+    const dep: WorkerDeployment = {
+      id: crypto.randomUUID(),
+      worker_name: data.worker_name || 'heartbeat-engine',
+      version: data.version || 'v1.0.0',
+      status: data.status || 'pending',
+      initiated_by: data.initiated_by || null,
+      started_at: new Date().toISOString(),
+      cron_schedule: data.cron_schedule || '30 3 * * SUN',
+      error_summary: data.error_summary || null,
+    };
+    list.unshift(dep);
+    await this.putJson('hb_deployments', list.slice(0, 50));
+    return dep;
+  }
+
+  async updateDeployment(id: string, data: Partial<WorkerDeployment>): Promise<WorkerDeployment> {
+    const list = await this.getDeployments(50);
+    const idx = list.findIndex((d) => d.id === id);
+    if (idx === -1) throw new Error(`Deployment ${id} not found`);
+    list[idx] = { ...list[idx], ...data };
+    await this.putJson('hb_deployments', list);
+    return list[idx];
+  }
+
+  async getDeployments(limit = 20): Promise<WorkerDeployment[]> {
+    const defaultDeployments: WorkerDeployment[] = [
+      {
+        id: 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380e55',
+        worker_name: 'heartbeat-engine',
+        version: 'v1.0.0',
+        status: 'successful',
+        started_at: '2026-10-20T17:54:07.057Z',
+        finished_at: '2026-10-20T17:54:07.057Z',
+        cron_schedule: '30 3 * * SUN',
+      },
+    ];
+    const list = await this.getJson<WorkerDeployment[]>('hb_deployments', defaultDeployments);
+    return list.slice(0, limit);
+  }
+
+  async getEmailConfig(): Promise<EmailConfig> {
+    const defaultConfig: EmailConfig = {
+      enabled: false,
+      provider: 'resend',
+      api_key: null,
+      from_email: 'Heartbeat Alerts <onboarding@resend.dev>',
+      to_emails: ['admin@example.com'],
+      notify_on_failure: true,
+      notify_on_scheduled_summary: true,
+      webhook_url: null,
+    };
+    return this.getJson<EmailConfig>('hb_email_config', defaultConfig);
+  }
+
+  async updateEmailConfig(config: Partial<EmailConfig>): Promise<EmailConfig> {
+    const current = await this.getEmailConfig();
+    const updated = { ...current, ...config };
+    await this.putJson('hb_email_config', updated);
+    await this.logActivity({
+      action: 'config.email_settings',
+      resource_type: 'settings',
+      outcome: 'success',
+      metadata: updated,
+    });
+    return updated;
+  }
+}
+
 // Global in-memory instance singleton for dev persistence
 const inMemorySingleton = new InMemoryStore();
 
@@ -504,9 +796,13 @@ export function getStorage(env?: any): StorageAdapter {
       });
       return new SupabaseStore(client);
     } catch (e) {
-      console.warn('Failed to initialize Supabase client, falling back to memory store:', e);
-      return inMemorySingleton;
+      console.warn('Failed to initialize Supabase client, falling back to KV/memory store:', e);
     }
+  }
+
+  // Cloudflare Workers Native KV Persistent Edge Storage
+  if (env?.HEARTBEAT_KV) {
+    return new CloudflareKVStore(env.HEARTBEAT_KV);
   }
 
   return inMemorySingleton;

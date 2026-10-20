@@ -5,6 +5,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2024-09-25",
   "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "HEARTBEAT_KV",
+      "id": "4d892112d67d49049f35d63a9b7836d3"
+    }
+  ],
   "triggers": {
     "crons": ["30 3 * * SUN"]
   },
