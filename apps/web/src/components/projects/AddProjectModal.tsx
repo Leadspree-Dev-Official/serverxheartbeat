@@ -16,6 +16,8 @@ import {
   X,
   AlertTriangle,
   CheckCircle2,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Project, ProviderType, EnvironmentType, HttpMethod, AuthType, EndpointTestResponse } from '@heartbeat/shared';
 import { api } from '../../lib/api';
@@ -58,6 +60,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [httpMethod, setHttpMethod] = useState<HttpMethod>(initialProject?.http_method || 'GET');
   const [authType, setAuthType] = useState<AuthType>(initialProject?.auth_type || 'none');
   const [authValue, setAuthValue] = useState('');
+  const [showAuthValue, setShowAuthValue] = useState(false);
   const [appwriteProjectId, setAppwriteProjectId] = useState<string>(
     initialProject?.custom_headers?.['X-Appwrite-Project'] || ''
   );
@@ -690,21 +693,45 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <input
-                    type="password"
-                    value={authValue}
-                    onChange={(e) => setAuthValue(e.target.value)}
-                    placeholder={
-                      initialProject?.secret_ref
-                        ? `Stored key: ${initialProject.secret_ref} (Leave blank to keep existing)`
-                        : provider === 'appwrite'
-                        ? 'Enter secret API key from Appwrite Console -> Integrations -> API Keys'
-                        : provider === 'supabase'
-                        ? 'eyJhbGciOi... (Supabase Console -> Project Settings -> API -> anon key)'
-                        : 'Enter secret token or key'
-                    }
-                    className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showAuthValue ? 'text' : 'password'}
+                      value={authValue}
+                      onChange={(e) => {
+                        setAuthValue(e.target.value);
+                        setTestResult(null);
+                      }}
+                      placeholder={
+                        initialProject?.secret_ref
+                          ? `Stored key: ${initialProject.secret_ref} (Leave blank to keep existing)`
+                          : provider === 'appwrite'
+                          ? 'Enter secret API key from Appwrite Console -> Integrations -> API Keys'
+                          : provider === 'supabase'
+                          ? 'eyJhbGciOi... (Supabase Console -> Project Settings -> API -> anon key)'
+                          : 'Enter secret token or key'
+                      }
+                      className="w-full px-3.5 py-2 pr-10 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAuthValue(!showAuthValue)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-1"
+                      title={showAuthValue ? 'Hide Key' : 'Reveal Key'}
+                    >
+                      {showAuthValue ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {provider === 'supabase' && authValue.trim() && !authValue.trim().startsWith('eyJ') && !authValue.trim().startsWith('sb_') && (
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] mt-1.5 leading-relaxed">
+                      ⚠️ <strong>Key Format Notice:</strong> Supabase <code>anon</code> keys are JWT tokens that almost always start with <code>eyJ...</code> (or modern <code>sb_...</code>). If your key is short or doesn't start with <code>eyJ</code>, check that you copied the <strong>Project API Key (anon)</strong> from Supabase Settings $\rightarrow$ API, and not your database login password.
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-slate-400 mt-1">
                     {provider === 'appwrite'
                       ? 'Sent as X-Appwrite-Key alongside your Project ID to execute developer-authenticated requests.'
@@ -1036,6 +1063,14 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                       <span className="text-slate-400 font-sans">Project ID:</span>
                       <code className="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-pink-300">
                         X-Appwrite-Project: {appwriteProjectId}
+                      </code>
+                    </div>
+                  )}
+                  {provider === 'supabase' && authType !== 'none' && authValue && (
+                    <div className="text-[11px] text-emerald-400 flex items-center gap-1.5 pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400 font-sans">Auth Header:</span>
+                      <code className="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-emerald-300">
+                        apikey: {authValue.slice(0, 12)}... ({authValue.length} chars)
                       </code>
                     </div>
                   )}
