@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "heartbeat-engine",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["30 3 * * SUN"]
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "WORKER_NAME": "heartbeat-engine",
+    "DEFAULT_CRON": "30 3 * * SUN"
+  }
+}

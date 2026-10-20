@@ -1,0 +1,27 @@
+{
+  "name": "heartbeat-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloud Infrastructure Monitoring and Scheduled Health-Check Platform on Cloudflare Workers",
+  "scripts": {
+    "build": "pnpm --filter @heartbeat/shared build && pnpm --filter @heartbeat/worker build && pnpm --filter @heartbeat/web build",
+    "dev:web": "pnpm --filter @heartbeat/web dev",
+    "dev:worker": "pnpm --filter @heartbeat/worker dev",
+    "lint": "pnpm --filter @heartbeat/shared lint && pnpm --filter @heartbeat/worker lint && pnpm --filter @heartbeat/web lint",
+    "typecheck": "pnpm --filter @heartbeat/shared typecheck && pnpm --filter @heartbeat/worker typecheck && pnpm --filter @heartbeat/web typecheck",
+    "test": "pnpm --filter @heartbeat/worker test"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "supabase",
+    "appwrite",
+    "health-check",
+    "monitoring",
+    "cron"
+  ],
+  "author": "Heartbeat Manager Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
