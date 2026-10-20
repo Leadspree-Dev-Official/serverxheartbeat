@@ -319,6 +319,15 @@ export function createApp() {
 
   app.post('/api/projects/test-draft', async (c) => {
     const body = await c.req.json();
+    console.log('[API test-draft payload received]:', JSON.stringify({
+      provider: body.provider,
+      base_url: body.base_url,
+      endpoint_path: body.endpoint_path,
+      auth_type: body.auth_type,
+      has_auth_value: !!body.auth_value,
+      auth_value_len: body.auth_value?.length,
+      expected_status_codes: body.expected_status_codes,
+    }));
     const parse = endpointTestSchema.safeParse(body);
     if (!parse.success) {
       return c.json({ error: 'Validation failed', details: parse.error.format() }, 400);

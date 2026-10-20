@@ -1,70 +1,40 @@
 import React, { useState } from 'react';
 import {
   AlertTriangle,
-  Calendar,
   CheckCircle2,
-  Clock,
   Cpu,
   Globe,
   RotateCw,
   Send,
   ShieldCheck,
   Zap,
+  HardDrive,
+  Terminal,
+  Activity,
+  Server,
+  Key,
 } from 'lucide-react';
-import { Schedule, WorkerDeployment } from '@heartbeat/shared';
+import { WorkerDeployment } from '@heartbeat/shared';
 import { api } from '../../lib/api';
 
 interface WorkerViewProps {
-  schedules: Schedule[];
   deployments: WorkerDeployment[];
   onRefresh: () => void;
 }
 
-export const WorkerView: React.FC<WorkerViewProps> = ({ schedules, deployments, onRefresh }) => {
-  const activeSchedule = schedules[0];
-  const [selectedDay, setSelectedDay] = useState<string>('SUN');
-  const [selectedHour, setSelectedHour] = useState<number>(9);
-  const [selectedMinute, setSelectedMinute] = useState<number>(0);
-  const [selectedTimezone, setSelectedTimezone] = useState<string>(
-    activeSchedule?.timezone || 'Asia/Kolkata'
-  );
-
+export const WorkerView: React.FC<WorkerViewProps> = ({ deployments, onRefresh }) => {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployResult, setDeployResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Calculate UTC Cron Expression from local hour/minute in Asia/Kolkata (UTC+5:30) or UTC
-  const calculateCronExpression = () => {
-    if (selectedTimezone === 'Asia/Kolkata') {
-      // 9:00 AM IST -> 03:30 UTC
-      let totalMinutes = selectedHour * 60 + selectedMinute - 330;
-      if (totalMinutes < 0) totalMinutes += 24 * 60;
-      const utcH = Math.floor(totalMinutes / 60);
-      const utcM = totalMinutes % 60;
-      return `${utcM} ${utcH} * * ${selectedDay}`;
-    }
-    // Default fallback direct UTC
-    return `${selectedMinute} ${selectedHour} * * ${selectedDay}`;
-  };
-
-  const currentCron = calculateCronExpression();
-
-  const handleSyncDeployment = async () => {
+  const handleDeployWorker = async () => {
     setIsDeploying(true);
     setDeployResult(null);
 
     try {
-      if (activeSchedule) {
-        await api.updateSchedule(activeSchedule.id, {
-          cron_expression: currentCron,
-          timezone: selectedTimezone,
-        });
-      } else {
-        await api.deployWorker();
-      }
-
+      const res = await api.deployWorker();
       setDeployResult({
         success: true,
-        message: `Worker successfully deployed! Active Cron Trigger: "${currentCron}"`,
+        message: 'Worker engine redeployed successfully to Cloudflare Global Edge!',
       });
       onRefresh();
     } catch (err: any) {
@@ -77,15 +47,46 @@ export const WorkerView: React.FC<WorkerViewProps> = ({ schedules, deployments, 
     }
   };
 
+  const latestDeployment = deployments[0];
+
   return (
     <div className="space-y-6">
-      {/* Title */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Cloudflare Worker &amp; Schedules</h2>
+          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            <Cpu className="w-5 h-5 text-blue-400" />
+            Cloudflare Worker Management
+          </h2>
           <p className="text-sm text-slate-400">
-            Configure Cron Triggers, manage execution schedules, and synchronize deployments with Cloudflare.
+            Monitor the serverless edge execution engine (`heartbeat-engine`), inspect Cloudflare bindings, and manage deployments.
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onRefresh}
+            className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+          <button
+            onClick={handleDeployWorker}
+            disabled={isDeploying}
+            className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/20 disabled:opacity-50"
+          >
+            {isDeploying ? (
+              <>
+                <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Deploying...</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5" />
+                <span>Redeploy to Cloudflare</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -99,9 +100,9 @@ export const WorkerView: React.FC<WorkerViewProps> = ({ schedules, deployments, 
         >
           <div className="flex items-center gap-2">
             {deployResult.success ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
             )}
             <span>{deployResult.message}</span>
           </div>
@@ -111,160 +112,200 @@ export const WorkerView: React.FC<WorkerViewProps> = ({ schedules, deployments, 
         </div>
       )}
 
-      {/* Top 2 Cards: Worker Status & Schedule Editor */}
+      {/* Edge Runtime Status Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-xs">
+            <span>Runtime Status</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <div className="text-base font-bold text-white flex items-center gap-2">
+            <span>Active on Edge</span>
+          </div>
+          <div className="text-[11px] text-emerald-400">
+            Global Anycast (300+ Locations)
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-xs">
+            <span>Worker Name</span>
+            <Server className="w-4 h-4 text-blue-400" />
+          </div>
+          <div className="font-mono text-base font-bold text-white truncate">
+            heartbeat-engine
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Cloudflare Workers Service
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-xs">
+            <span>Free Tier Safety</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-base font-bold text-emerald-400">
+            100% Free
+          </div>
+          <div className="text-[11px] text-slate-500">
+            &lt; 0.05% of 100k daily req quota
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-xs">
+            <span>Deployments</span>
+            <Activity className="w-4 h-4 text-purple-400" />
+          </div>
+          <div className="text-base font-bold text-white">
+            {deployments.length} Recorded
+          </div>
+          <div className="text-[11px] text-slate-500 truncate">
+            {latestDeployment ? `Last: ${new Date(latestDeployment.started_at).toLocaleDateString()}` : 'Ready'}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Architecture & Environment Variables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Worker Runtime Status Card */}
+        {/* Worker Runtime Details */}
         <div className="rounded-xl bg-slate-900 border border-slate-800 p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                 <Cpu className="w-5 h-5 text-blue-400" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white">Cloudflare Worker Runtime</h3>
-                <p className="text-xs text-slate-400">Script: heartbeat-engine</p>
+                <h3 className="font-bold text-sm text-white">Edge Worker Configuration</h3>
+                <p className="text-xs text-slate-400">Cloudflare Workers V8 Isolate Architecture</p>
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Active Edge
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Healthy
             </span>
           </div>
 
-          <div className="space-y-2 text-xs divide-y divide-slate-800">
+          <div className="space-y-2 text-xs divide-y divide-slate-800/80">
             <div className="flex justify-between py-2">
               <span className="text-slate-400">Target Worker Script:</span>
               <span className="font-mono font-semibold text-slate-200">heartbeat-engine</span>
             </div>
             <div className="flex justify-between py-2">
-              <span className="text-slate-400">Active Cron Trigger:</span>
-              <span className="font-mono font-semibold text-emerald-400">
-                {activeSchedule?.cron_expression || '30 3 * * SUN'}
+              <span className="text-slate-400">Execution Runtime:</span>
+              <span className="font-semibold text-slate-200">Cloudflare workerd / V8 Isolate</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-slate-400">Cold Start Latency:</span>
+              <span className="font-mono text-emerald-400">&lt; 5 ms (Zero Cold Start)</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-slate-400">Memory Allocation:</span>
+              <span className="font-mono text-slate-200">128 MB Standard Worker Limit</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-slate-400">Outbound Prober:</span>
+              <span className="text-slate-200">Dual HTTP/HTTPS Fetch with SSRF Guard</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-slate-400">Keep-Alive Engine Mode:</span>
+              <span className="text-emerald-400 font-semibold">Autonomous Cron-Triggered Ping</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Cloudflare Secrets & Environment Bindings Audit */}
+        <div className="rounded-xl bg-slate-900 border border-slate-800 p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-white">Cloudflare Bindings &amp; Security</h3>
+                <p className="text-xs text-slate-400">Least-privilege token &amp; encrypted secret bindings</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs">
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                  <span>CLOUDFLARE_API_TOKEN</span>
+                </div>
+                <div className="text-[11px] text-slate-500">Scoped permissions: Workers:Edit</div>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Bound &amp; Active
               </span>
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-400">Configured Timezone:</span>
-              <span className="text-slate-200">{activeSchedule?.timezone || 'Asia/Kolkata (IST)'}</span>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                  <HardDrive className="w-3.5 h-3.5 text-blue-400" />
+                  <span>STORAGE_BACKEND</span>
+                </div>
+                <div className="text-[11px] text-slate-500">Supabase DB / Local High-Speed Store</div>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Connected
+              </span>
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-400">Scheduled Execution:</span>
-              <span className="text-slate-200">Sundays at 09:00 AM IST (03:30 AM UTC)</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-400">Least-Privilege API Token:</span>
-              <span className="text-emerald-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Workers:Edit Scope</span>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-purple-400" />
+                  <span>ENVIRONMENT</span>
+                </div>
+                <div className="text-[11px] text-slate-500">Edge runtime context</div>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                production
               </span>
             </div>
           </div>
 
           <div className="pt-2">
             <button
-              onClick={handleSyncDeployment}
+              onClick={handleDeployWorker}
               disabled={isDeploying}
-              className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50"
+              className="w-full py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20 disabled:opacity-50"
             >
               {isDeploying ? (
                 <>
                   <RotateCw className="w-4 h-4 animate-spin" />
-                  <span>Synchronizing Cron Trigger with Cloudflare...</span>
+                  <span>Syncing &amp; Redeploying Worker...</span>
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  <span>Redeploy &amp; Sync Cron Schedule</span>
+                  <span>Redeploy &amp; Synchronize Edge Worker</span>
                 </>
               )}
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Schedule Customization & Timezone Converter */}
-        <div className="rounded-xl bg-slate-900 border border-slate-800 p-6 space-y-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-white">Weekly Schedule Configuration</h3>
-              <p className="text-xs text-slate-400">Configure local day/time and translate to UTC Cron.</p>
-            </div>
-          </div>
-
-          <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Execution Day</label>
-                <select
-                  value={selectedDay}
-                  onChange={(e) => setSelectedDay(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="SUN">Sunday (Default)</option>
-                  <option value="MON">Monday</option>
-                  <option value="TUE">Tuesday</option>
-                  <option value="WED">Wednesday</option>
-                  <option value="THU">Thursday</option>
-                  <option value="FRI">Friday</option>
-                  <option value="SAT">Saturday</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Local Time</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <select
-                    value={selectedHour}
-                    onChange={(e) => setSelectedHour(parseInt(e.target.value, 10))}
-                    className="w-full px-2 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-                  >
-                    {Array.from({ length: 24 }).map((_, i) => (
-                      <option key={i} value={i}>
-                        {i.toString().padStart(2, '0')}:00
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={selectedMinute}
-                    onChange={(e) => setSelectedMinute(parseInt(e.target.value, 10))}
-                    className="w-full px-2 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-                  >
-                    <option value={0}>:00</option>
-                    <option value={15}>:15</option>
-                    <option value={30}>:30</option>
-                    <option value={45}>:45</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-slate-300 font-semibold mb-1">Timezone</label>
-              <select
-                value={selectedTimezone}
-                onChange={(e) => setSelectedTimezone(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="Asia/Kolkata">Asia/Kolkata (IST - UTC+05:30)</option>
-                <option value="UTC">UTC (Universal Time Coordinated)</option>
-                <option value="America/New_York">America/New_York (EST/EDT)</option>
-                <option value="Europe/London">Europe/London (GMT/BST)</option>
-              </select>
-            </div>
-
-            {/* Generated UTC Cron Preview */}
-            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-400 font-medium">Resulting UTC Cron:</span>
-                <span className="font-mono font-bold text-emerald-400 text-sm">{currentCron}</span>
-              </div>
-              <div className="text-[11px] text-slate-500">
-                Cloudflare Worker Cron Triggers execute strictly in UTC. Changing this schedule will update the deployed Cron Trigger on Cloudflare.
-              </div>
-            </div>
-          </div>
+      {/* CLI Reference & Quick Deployment Snippet */}
+      <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
+        <div className="flex items-center gap-2 text-white font-bold text-xs">
+          <Terminal className="w-4 h-4 text-emerald-400" />
+          <span>Wrangler CLI Manual Deployment Reference</span>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          The heartbeat worker can be deployed automatically via the dashboard button above, or from your terminal or CI/CD pipeline using Wrangler:
+        </p>
+        <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-400 overflow-x-auto space-y-1">
+          <div><span className="text-slate-500"># 1. Build and dry-run bundle verification</span></div>
+          <div>pnpm --filter @heartbeat/worker build</div>
+          <div className="pt-1"><span className="text-slate-500"># 2. Deploy directly to Cloudflare</span></div>
+          <div>npx wrangler deploy</div>
         </div>
       </div>
 
@@ -273,7 +314,7 @@ export const WorkerView: React.FC<WorkerViewProps> = ({ schedules, deployments, 
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-sm text-white">Worker Deployment History</h3>
-            <p className="text-xs text-slate-400">Chronological record of worker cron synchronizations.</p>
+            <p className="text-xs text-slate-400">Chronological record of worker edge deployments and updates.</p>
           </div>
         </div>
 

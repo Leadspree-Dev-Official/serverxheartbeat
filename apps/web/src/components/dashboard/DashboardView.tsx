@@ -8,12 +8,14 @@ import {
   Clock,
   Layers,
   Play,
+  Plus,
   RotateCw,
   Server,
   ShieldAlert,
   Zap,
 } from 'lucide-react';
 import { DashboardMetrics, Project, HeartbeatRun } from '@heartbeat/shared';
+import { AddProjectModal } from '../projects/AddProjectModal';
 
 interface DashboardViewProps {
   metrics: DashboardMetrics | null;
@@ -22,6 +24,7 @@ interface DashboardViewProps {
   onTestProject: (id: string) => Promise<void>;
   onNavigateProjects: () => void;
   onNavigateJobs: () => void;
+  onRefresh?: () => void;
   isLoading: boolean;
 }
 
@@ -32,9 +35,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onTestProject,
   onNavigateProjects,
   onNavigateJobs,
+  onRefresh,
   isLoading,
 }) => {
   const [testingId, setTestingId] = React.useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
 
   const handleTest = async (id: string) => {
     setTestingId(id);
@@ -108,13 +113,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Page Title */}
+      {/* Page Title & Add Project Shortcut */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-white">System Dashboard</h2>
           <p className="text-sm text-slate-400">
             Portfolio health metrics, scheduled heartbeat runs, and Cloudflare Worker status.
           </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/10 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Project</span>
+          </button>
         </div>
       </div>
 
@@ -191,13 +205,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h3 className="font-semibold text-sm text-white">Project Health Overview</h3>
               <p className="text-xs text-slate-400">Status, measured response latency, and endpoint state.</p>
             </div>
-            <button
-              onClick={onNavigateProjects}
-              className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium"
-            >
-              <span>View All</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/20 transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Project</span>
+              </button>
+              <button
+                onClick={onNavigateProjects}
+                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium transition-colors"
+              >
+                <span>View All</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -338,6 +361,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Add Project Modal Shortcut */}
+      <AddProjectModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onProjectSaved={() => {
+          setIsAddModalOpen(false);
+          onRefresh?.();
+        }}
+      />
     </div>
   );
 };

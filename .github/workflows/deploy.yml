@@ -1,0 +1,86 @@
+name: Deploy Heartbeat Engine to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    name: Build & Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run Test Suite
+        run: pnpm test
+
+      - name: Build Web UI & Embed Bundle
+        run: |
+          pnpm --filter @heartbeat/web build
+          node scripts/embed-frontend.mjs
+
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Workers
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web UI & Embed Bundle
+        run: |
+          pnpm --filter @heartbeat/web build
+          node scripts/embed-frontend.mjs
+
+      - name: Check Cloudflare Secret Configuration
+        id: check_secret
+        run: |
+          if [ -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+            echo "has_secret=true" >> $GITHUB_OUTPUT
+            echo "Cloudflare API token detected. Proceeding with deployment."
+          else
+            echo "has_secret=false" >> $GITHUB_OUTPUT
+            echo "::warning::CLOUDFLARE_API_TOKEN secret is not set yet in GitHub repository settings. Add it under Settings -> Secrets and variables -> Actions to enable automatic edge deployment."
+          fi
+
+      - name: Deploy Worker via Wrangler
+        if: steps.check_secret.outputs.has_secret == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: 'apps/worker'

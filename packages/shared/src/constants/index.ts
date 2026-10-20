@@ -13,7 +13,7 @@ export const PROVIDER_DEFAULTS = {
   },
   appwrite: {
     name: 'Appwrite',
-    defaultEndpoint: '/v1/health',
+    defaultEndpoint: '/v1/health/version',
     defaultMethod: 'GET' as const,
     defaultAuthType: 'none' as const,
     projectHeaderName: 'X-Appwrite-Project',

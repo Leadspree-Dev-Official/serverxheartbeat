@@ -56,6 +56,12 @@ export abstract class BaseConnector {
 
     const startTime = Date.now();
     try {
+      console.log(`[Connector Outbound] ${method} ${url}`, {
+        headers,
+        auth_type: project.auth_type,
+        authSecretLength: authSecret?.length,
+      });
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -79,6 +85,16 @@ export abstract class BaseConnector {
         if (val) safeHeaders[key] = val;
       }
 
+      let responseBody = '';
+      try {
+        responseBody = await response.text();
+      } catch (e) {}
+
+      console.log(`[Connector Response] ${method} ${url} -> HTTP ${response.status} (${responseTimeMs}ms)`, {
+        headers: safeHeaders,
+        body: responseBody,
+      });
+
       if (isExpected) {
         return {
           status: 'success',
@@ -93,7 +109,7 @@ export abstract class BaseConnector {
           httpStatus: response.status,
           responseTimeMs,
           headers: safeHeaders,
-          error: `HTTP ${response.status}: Server Error`,
+          error: `HTTP ${response.status}: Server Error${responseBody ? ` - ${responseBody.slice(0, 200)}` : ''}`,
           message: `Endpoint returned server error ${response.status}`,
         };
       } else {
@@ -102,7 +118,7 @@ export abstract class BaseConnector {
           httpStatus: response.status,
           responseTimeMs,
           headers: safeHeaders,
-          error: `HTTP ${response.status}: Unexpected status code (expected ${JSON.stringify(project.expected_status_codes)})`,
+          error: `HTTP ${response.status}: Unexpected status code (expected ${JSON.stringify(project.expected_status_codes)})${responseBody ? ` - ${responseBody.slice(0, 200)}` : ''}`,
           message: `Endpoint responded with unexpected HTTP ${response.status}`,
         };
       }

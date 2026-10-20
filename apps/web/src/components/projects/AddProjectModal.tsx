@@ -58,6 +58,9 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [httpMethod, setHttpMethod] = useState<HttpMethod>(initialProject?.http_method || 'GET');
   const [authType, setAuthType] = useState<AuthType>(initialProject?.auth_type || 'none');
   const [authValue, setAuthValue] = useState('');
+  const [appwriteProjectId, setAppwriteProjectId] = useState<string>(
+    initialProject?.custom_headers?.['X-Appwrite-Project'] || ''
+  );
   const [expectedCodes, setExpectedCodes] = useState<string>(
     initialProject ? initialProject.expected_status_codes.join(', ') : '200, 204'
   );
@@ -139,9 +142,20 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
     const timesText = sortedHours.map((h) => formatHourLabel(h, scheduleMinutes)).join(', ');
 
+    // Group into clear day & time pairs: e.g. "Sunday at 9:00 AM, 9:00 PM • Wednesday at 9:00 AM, 9:00 PM"
+    const scheduleSummaryList = scheduleDays.map((d) => {
+      const dayName = ALL_DAYS.find((item) => item.id === d)?.name || d;
+      return `${dayName} at ${timesText}`;
+    });
+
+    const detailedScheduleText =
+      scheduleDays.length === 7
+        ? `Daily at ${timesText}`
+        : scheduleSummaryList.join(' • ');
+
     return {
       cron,
-      human: `Runs ${daysText} at ${timesText} (${scheduleTimezone})`,
+      human: `Runs: ${detailedScheduleText} (${scheduleTimezone})`,
       isDefault: false,
     };
   };
@@ -172,13 +186,33 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
 
   const handleProviderSelect = (selected: ProviderType) => {
     setProvider(selected);
-    if (!endpointPath) {
-      if (selected === 'supabase') setEndpointPath('/rest/v1/');
-      else if (selected === 'appwrite') setEndpointPath('/v1/health');
-      else setEndpointPath('/healthz');
+
+    if (!initialProject) {
+      if (selected === 'appwrite') {
+        if (!name || name === 'Supabase Production' || name === 'Generic API') {
+          setName('Appwrite Cloud Backend');
+        }
+        setBaseUrl('https://sgp.cloud.appwrite.io');
+        setEndpointPath('/v1/health');
+        setAuthType('api_key');
+        setExpectedCodes('200');
+      } else if (selected === 'supabase') {
+        if (!name || name === 'Appwrite Cloud Backend' || name === 'Generic API') {
+          setName('Supabase Production Edge');
+        }
+        setEndpointPath('/rest/v1/');
+        setAuthType('api_key');
+        setExpectedCodes('200, 204, 401');
+      } else {
+        if (!name || name === 'Appwrite Cloud Backend' || name === 'Supabase Production Edge') {
+          setName('Generic Service Probe');
+        }
+        setEndpointPath('/healthz');
+        setAuthType('none');
+        setExpectedCodes('200');
+      }
     }
-    if (selected === 'supabase') setAuthType('api_key');
-    else if (selected === 'appwrite') setAuthType('none');
+
     setStep(2);
   };
 
@@ -192,6 +226,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       .map((c) => parseInt(c.trim(), 10))
       .filter((n) => !isNaN(n));
 
+    const customHeaders: Record<string, string> = {
+      ...(initialProject?.custom_headers || {}),
+    };
+    if (provider === 'appwrite' && appwriteProjectId.trim()) {
+      customHeaders['X-Appwrite-Project'] = appwriteProjectId.trim();
+    }
+
     try {
       const res = await api.testDraftProject({
         provider,
@@ -199,7 +240,8 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
         endpoint_path: endpointPath,
         http_method: httpMethod,
         auth_type: authType,
-        auth_value: authValue || undefined,
+        auth_value: authType !== 'none' && authValue.trim() ? authValue.trim() : undefined,
+        custom_headers: customHeaders,
         expected_status_codes: codes.length > 0 ? codes : [200],
         timeout_ms: timeoutMs,
       });
@@ -220,6 +262,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       .map((c) => parseInt(c.trim(), 10))
       .filter((n) => !isNaN(n));
 
+    const customHeaders: Record<string, string> = {
+      ...(initialProject?.custom_headers || {}),
+    };
+    if (provider === 'appwrite' && appwriteProjectId.trim()) {
+      customHeaders['X-Appwrite-Project'] = appwriteProjectId.trim();
+    }
+
     const projectPayload = {
       name,
       provider,
@@ -228,7 +277,8 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       endpoint_path: endpointPath,
       http_method: httpMethod,
       auth_type: authType,
-      auth_value: authValue || undefined,
+      auth_value: authType !== 'none' && authValue.trim() ? authValue.trim() : undefined,
+      custom_headers: customHeaders,
       expected_status_codes: codes.length > 0 ? codes : [200, 204],
       timeout_ms: timeoutMs,
       retry_count: retryCount,
@@ -365,7 +415,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                   <div>
                     <div className="font-semibold text-sm">Appwrite</div>
                     <div className="text-[11px] text-slate-400 mt-1">
-                      Platform health check (/v1/health) with Project ID header.
+                      Platform health check (/v1/health/version) with Project ID or public ping.
                     </div>
                   </div>
                 </button>
@@ -440,9 +490,16 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Base Project URL (HTTPS required)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Base Project URL (HTTPS required)
+                  </label>
+                  {provider === 'appwrite' && (
+                    <span className="text-[10px] text-pink-400 font-medium bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">
+                      Regional Endpoint
+                    </span>
+                  )}
+                </div>
                 <input
                   type="url"
                   value={baseUrl}
@@ -451,20 +508,79 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                     provider === 'supabase'
                       ? 'https://abcdefghijklm.supabase.co'
                       : provider === 'appwrite'
-                      ? 'https://cloud.appwrite.io'
+                      ? 'https://sgp.cloud.appwrite.io'
                       : 'https://api.myapp.com'
                   }
                   className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
                 />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  SSRF Protection: Loopback, private IP ranges (RFC1918), and metadata hosts are rejected.
-                </p>
+                {provider === 'appwrite' ? (
+                  <div className="space-y-1.5 mt-1.5">
+                    <p className="text-[11px] text-slate-400">
+                      Found in <strong>Appwrite Console → Settings → API Endpoint</strong>. Select your project region:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { label: 'Singapore (sgp - India default)', url: 'https://sgp.cloud.appwrite.io' },
+                        { label: 'Frankfurt (fra)', url: 'https://fra.cloud.appwrite.io' },
+                        { label: 'New York (nyc)', url: 'https://nyc.cloud.appwrite.io' },
+                        { label: 'Global', url: 'https://cloud.appwrite.io' },
+                      ].map((reg) => (
+                        <button
+                          key={reg.url}
+                          type="button"
+                          onClick={() => setBaseUrl(reg.url)}
+                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                            baseUrl === reg.url
+                              ? 'bg-pink-500/20 text-pink-300 border-pink-500/40 font-semibold'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          {reg.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {provider === 'supabase'
+                      ? 'Enter your unique Supabase Project URL (e.g. https://xyaabldfxxhemcqeqzuk.supabase.co).'
+                      : 'SSRF Protection: Loopback, private IP ranges (RFC1918), and metadata hosts are rejected.'}
+                  </p>
+                )}
               </div>
 
+              {provider === 'appwrite' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Appwrite Project ID <span className="text-pink-400">*</span>
+                    </label>
+                    <span className="text-[10px] text-pink-400 font-medium bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">
+                      Identifies Your Project
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={appwriteProjectId}
+                    onChange={(e) => setAppwriteProjectId(e.target.value.trim())}
+                    placeholder="e.g. 671234567890abcdef12"
+                    className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-pink-500"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Your unique Project ID from Appwrite Console → Settings. Sent in the <code className="text-pink-300">X-Appwrite-Project</code> header so Appwrite knows which specific project you are probing.
+                  </p>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Health Check Endpoint Path
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Health Check Endpoint Path
+                  </label>
+                  <span className="text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Standard Endpoint Pre-filled
+                  </span>
+                </div>
                 <input
                   type="text"
                   value={endpointPath}
@@ -478,6 +594,36 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                   }
                   className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
                 />
+                {provider === 'appwrite' ? (
+                  <div className="space-y-1 mt-1.5">
+                    <p className="text-[11px] text-slate-400">
+                      Use <strong className="text-pink-300">/v1/health</strong> when authenticating with your API Key (with health.read scope).
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { label: '/v1/health (API Key with health.read)', path: '/v1/health' },
+                        { label: '/v1/health/version (Public Ping)', path: '/v1/health/version' },
+                      ].map((p) => (
+                        <button
+                          key={p.path}
+                          type="button"
+                          onClick={() => setEndpointPath(p.path)}
+                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                            endpointPath === p.path
+                              ? 'bg-pink-500/20 text-pink-300 border-pink-500/40 font-semibold'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Pre-filled with official health check path. You can edit this anytime for custom endpoints.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -495,8 +641,16 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                     onChange={(e) => setAuthType(e.target.value as AuthType)}
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="none">None (Public Endpoint)</option>
-                    <option value="api_key">API Key (apikey header)</option>
+                    <option value="none">
+                      {provider === 'appwrite'
+                        ? 'None (Public Ping - Uses Project ID only)'
+                        : 'None (Public Endpoint)'}
+                    </option>
+                    <option value="api_key">
+                      {provider === 'appwrite'
+                        ? 'Secret API Key (X-Appwrite-Key - Active Keep-Alive)'
+                        : 'API Key (apikey header)'}
+                    </option>
                     <option value="bearer">Bearer Token (Authorization: Bearer ...)</option>
                     <option value="basic">Basic Auth</option>
                   </select>
@@ -520,7 +674,11 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               {authType !== 'none' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    {initialProject?.secret_ref ? 'Replace Authentication Credential' : 'Authentication Credential'}
+                    {initialProject?.secret_ref
+                      ? 'Replace Authentication Credential'
+                      : provider === 'appwrite'
+                      ? 'Appwrite Secret API Key'
+                      : 'Authentication Credential'}
                   </label>
                   <input
                     type="password"
@@ -529,12 +687,16 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                     placeholder={
                       initialProject?.secret_ref
                         ? `Stored key: ${initialProject.secret_ref} (Leave blank to keep existing)`
+                        : provider === 'appwrite'
+                        ? 'Enter secret API key from Appwrite Console -> Integrations -> API Keys'
                         : 'Enter secret token or key'
                     }
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
                   />
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Secrets are encrypted and never exposed in client API responses.
+                    {provider === 'appwrite'
+                      ? 'Sent as X-Appwrite-Key alongside your Project ID to execute developer-authenticated requests.'
+                      : 'Secrets are encrypted and never exposed in client API responses.'}
                   </p>
                 </div>
               )}
@@ -847,8 +1009,16 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                   </button>
                 </div>
 
-                <div className="text-xs font-mono text-slate-400 bg-slate-900 p-2.5 rounded-lg border border-slate-800 truncate">
-                  {httpMethod} {baseUrl}{endpointPath}
+                <div className="text-xs font-mono text-slate-400 bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                  <div className="text-slate-200 truncate">{httpMethod} {baseUrl}{endpointPath}</div>
+                  {provider === 'appwrite' && appwriteProjectId && (
+                    <div className="text-[11px] text-pink-400 flex items-center gap-1.5 pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400 font-sans">Project ID:</span>
+                      <code className="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-pink-300">
+                        X-Appwrite-Project: {appwriteProjectId}
+                      </code>
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">

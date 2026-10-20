@@ -5,6 +5,7 @@ import { ProjectsView } from './components/projects/ProjectsView';
 import { JobsView } from './components/jobs/JobsView';
 import { ActivityView } from './components/activity/ActivityView';
 import { WorkerView } from './components/worker/WorkerView';
+import { SchedulesView } from './components/schedules/SchedulesView';
 import { SettingsView } from './components/settings/SettingsView';
 import { api } from './lib/api';
 import {
@@ -79,6 +80,7 @@ export const App: React.FC = () => {
           onTestProject={handleTestProject}
           onNavigateProjects={() => setCurrentTab('projects')}
           onNavigateJobs={() => setCurrentTab('jobs')}
+          onRefresh={loadAllData}
           isLoading={isLoading}
         />
       )}
@@ -95,10 +97,17 @@ export const App: React.FC = () => {
         <ActivityView logs={logs} onRefresh={loadAllData} />
       )}
 
-      {(currentTab === 'worker' || currentTab === 'schedules') && (
+      {currentTab === 'worker' && (
         <WorkerView
-          schedules={schedules}
           deployments={deployments}
+          onRefresh={loadAllData}
+        />
+      )}
+
+      {currentTab === 'schedules' && (
+        <SchedulesView
+          schedules={schedules}
+          projects={projects}
           onRefresh={loadAllData}
         />
       )}
