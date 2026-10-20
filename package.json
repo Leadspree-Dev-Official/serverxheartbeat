@@ -4,8 +4,10 @@
   "private": true,
   "description": "Cloud Infrastructure Monitoring and Scheduled Health-Check Platform on Cloudflare Workers",
   "scripts": {
-    "start": "node scripts/supervisor.mjs",
-    "dev": "node scripts/supervisor.mjs",
+    "start": "tsx server.ts",
+    "dev": "tsx server.ts",
+    "worker:dev": "pnpm --filter @heartbeat/worker dev",
+    "worker:deploy": "pnpm --filter @heartbeat/worker deploy",
     "build": "pnpm --filter @heartbeat/shared build && pnpm --filter @heartbeat/worker build && pnpm --filter @heartbeat/web build",
     "dev:web": "pnpm --filter @heartbeat/web dev",
     "dev:worker": "pnpm --filter @heartbeat/worker dev",
