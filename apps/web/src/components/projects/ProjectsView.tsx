@@ -234,10 +234,33 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, onRefresh 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {filteredProjects.length === 0 ? (
+              {projects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
-                    No matching projects found.
+                  <td colSpan={8} className="py-16 text-center">
+                    <div className="max-w-sm mx-auto flex flex-col items-center">
+                      <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-400 mb-3">
+                        <Plus className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-sm font-semibold text-white mb-1">No projects registered</h4>
+                      <p className="text-xs text-slate-400 mb-4">
+                        Add your first Supabase, Appwrite, or HTTP service endpoint to begin scheduled health checks.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setEditingProject(null);
+                          setIsModalOpen(true);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold transition-all shadow-md shadow-emerald-500/20"
+                      >
+                        + Add First Project
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredProjects.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                    No matching projects found with selected filters.
                   </td>
                 </tr>
               ) : (

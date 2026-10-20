@@ -33,72 +33,7 @@ export interface StorageAdapter {
 
 // In-Memory fallback store for local development or when Supabase keys are not set
 class InMemoryStore implements StorageAdapter {
-  private projects: Project[] = [
-    {
-      id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380b22',
-      name: 'E-Commerce Backend (Supabase)',
-      provider: 'supabase',
-      environment: 'production',
-      base_url: 'https://xyzcompany.supabase.co',
-      endpoint_path: '/rest/v1/',
-      http_method: 'GET',
-      auth_type: 'api_key',
-      secret_ref: 'sbp_mock_token_123',
-      expected_status_codes: [200, 204],
-      timeout_ms: 10000,
-      retry_count: 2,
-      schedule_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      enabled: true,
-      last_checked_at: new Date(Date.now() - 3600000).toISOString(),
-      last_successful_at: new Date(Date.now() - 3600000).toISOString(),
-      last_status: 'healthy',
-      last_response_time_ms: 142,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380c33',
-      name: 'Mobile Auth & Storage (Appwrite)',
-      provider: 'appwrite',
-      environment: 'production',
-      base_url: 'https://cloud.appwrite.io',
-      endpoint_path: '/v1/health',
-      http_method: 'GET',
-      auth_type: 'none',
-      expected_status_codes: [200, 401],
-      timeout_ms: 10000,
-      retry_count: 2,
-      schedule_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      enabled: true,
-      last_checked_at: new Date(Date.now() - 7200000).toISOString(),
-      last_successful_at: new Date(Date.now() - 7200000).toISOString(),
-      last_status: 'healthy',
-      last_response_time_ms: 215,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380d44',
-      name: 'Notification Microservice (Generic)',
-      provider: 'generic',
-      environment: 'staging',
-      base_url: 'https://httpbin.org',
-      endpoint_path: '/status/200',
-      http_method: 'GET',
-      auth_type: 'none',
-      expected_status_codes: [200],
-      timeout_ms: 8000,
-      retry_count: 2,
-      schedule_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      enabled: true,
-      last_checked_at: new Date(Date.now() - 14400000).toISOString(),
-      last_successful_at: new Date(Date.now() - 14400000).toISOString(),
-      last_status: 'healthy',
-      last_response_time_ms: 340,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
+  private projects: Project[] = [];
 
   private schedules: Schedule[] = [
     {
@@ -112,36 +47,9 @@ class InMemoryStore implements StorageAdapter {
     },
   ];
 
-  private runs: HeartbeatRun[] = [
-    {
-      id: 'r1eebc99-9c0b-4ef8-bb6d-6bb9bd380f11',
-      trigger_type: 'scheduled',
-      started_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-      finished_at: new Date(Date.now() - 86400000 * 7 + 4200).toISOString(),
-      total_projects: 3,
-      successful_count: 3,
-      failed_count: 0,
-      skipped_count: 0,
-      status: 'success',
-      created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-    },
-  ];
+  private runs: HeartbeatRun[] = [];
 
-  private results: HeartbeatResult[] = [
-    {
-      id: 'res-1',
-      run_id: 'r1eebc99-9c0b-4ef8-bb6d-6bb9bd380f11',
-      project_id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380b22',
-      project_name: 'E-Commerce Backend (Supabase)',
-      provider: 'supabase',
-      checked_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-      http_status: 200,
-      response_time_ms: 142,
-      retry_attempts: 0,
-      status: 'success',
-      created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-    },
-  ];
+  private results: HeartbeatResult[] = [];
 
   private activity: ActivityLog[] = [
     {
@@ -149,7 +57,7 @@ class InMemoryStore implements StorageAdapter {
       action: 'system.bootstrap',
       resource_type: 'system',
       outcome: 'success',
-      metadata: { message: 'Heartbeat Manager initialized with default Sunday cron schedule' },
+      metadata: { message: 'Heartbeat Manager initialized. Ready for project registration.' },
       created_at: new Date().toISOString(),
     },
   ];
@@ -160,8 +68,8 @@ class InMemoryStore implements StorageAdapter {
       worker_name: 'heartbeat-engine',
       version: 'v1.0.0',
       status: 'successful',
-      started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      finished_at: new Date(Date.now() - 86400000 * 2 + 12000).toISOString(),
+      started_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
       cron_schedule: '30 3 * * SUN',
     },
   ];

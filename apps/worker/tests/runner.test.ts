@@ -21,6 +21,17 @@ describe('Heartbeat Engine Runner', () => {
 
   it('records execution results and sets overall run status', async () => {
     const storage = getStorage();
+
+    // Create an active test project for runner validation
+    await storage.createProject({
+      name: 'Active Test App',
+      provider: 'generic',
+      base_url: 'https://httpbin.org',
+      endpoint_path: '/status/200',
+      expected_status_codes: [200],
+      enabled: true,
+    });
+
     const summary = await executeHeartbeatBatch(storage, {
       triggerType: 'manual',
       allowHttp: true,

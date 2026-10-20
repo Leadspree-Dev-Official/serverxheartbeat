@@ -192,68 +192,14 @@ VALUES (
     true
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO projects (id, name, provider, environment, base_url, endpoint_path, http_method, auth_type, expected_status_codes, timeout_ms, retry_count, schedule_id, enabled, last_status, last_response_time_ms)
-VALUES
-(
-    'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380b22',
-    'E-Commerce Backend (Supabase)',
-    'supabase',
-    'production',
-    'https://xyzcompany.supabase.co',
-    '/rest/v1/',
-    'GET',
-    'api_key',
-    '[200, 204]'::jsonb,
-    10000,
-    2,
-    'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    true,
-    'healthy',
-    142
-),
-(
-    'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380c33',
-    'Mobile Auth & Storage (Appwrite)',
-    'appwrite',
-    'production',
-    'https://cloud.appwrite.io',
-    '/v1/health',
-    'GET',
-    'none',
-    '[200]'::jsonb,
-    10000,
-    2,
-    'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    true,
-    'healthy',
-    215
-),
-(
-    'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380d44',
-    'Notification Microservice (Generic)',
-    'generic',
-    'staging',
-    'https://api.notifications.internal.example.com',
-    '/healthz',
-    'GET',
-    'bearer',
-    '[200]'::jsonb,
-    8000,
-    2,
-    'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    true,
-    'warning',
-    890
-) ON CONFLICT (id) DO NOTHING;
-
 INSERT INTO worker_deployments (id, worker_name, version, status, started_at, finished_at, cron_schedule)
 VALUES (
     'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380e55',
     'heartbeat-engine',
     'v1.0.0',
     'successful',
-    now() - interval '2 days',
-    now() - interval '2 days' + interval '12 seconds',
+    now(),
+    now(),
     '30 3 * * SUN'
 ) ON CONFLICT (id) DO NOTHING;
 
@@ -263,5 +209,5 @@ VALUES
     'system.bootstrap',
     'system',
     'success',
-    '{"message": "Heartbeat Manager initialized with default Sunday cron schedule and seed projects"}'::jsonb
+    '{"message": "Heartbeat Manager initialized. Ready for project registration."}'::jsonb
 );

@@ -18,10 +18,10 @@ import { api } from '../../lib/api';
 
 export const SettingsView: React.FC = () => {
   // Cloudflare & Supabase Credentials State
-  const [cfAccountId, setCfAccountId] = useState('d3b07384d113edec49eaa6238ad5ff00');
+  const [cfAccountId, setCfAccountId] = useState('');
   const [cfWorkerName, setCfWorkerName] = useState('heartbeat-engine');
   const [cfToken, setCfToken] = useState('');
-  const [supaUrl, setSupaUrl] = useState('https://xyzcompany.supabase.co');
+  const [supaUrl, setSupaUrl] = useState('');
   const [supaKey, setSupaKey] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
@@ -30,7 +30,7 @@ export const SettingsView: React.FC = () => {
   const [emailProvider, setEmailProvider] = useState<EmailProviderType>('resend');
   const [emailApiKey, setEmailApiKey] = useState('');
   const [emailFrom, setEmailFrom] = useState('Heartbeat Alerts <onboarding@resend.dev>');
-  const [emailTo, setEmailTo] = useState('admin@example.com');
+  const [emailTo, setEmailTo] = useState('');
   const [notifyOnFailure, setNotifyOnFailure] = useState(true);
   const [notifyOnScheduled, setNotifyOnScheduled] = useState(true);
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -331,6 +331,7 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 value={cfAccountId}
                 onChange={(e) => setCfAccountId(e.target.value)}
+                placeholder="e.g. d3b07384d113edec49eaa6238ad5ff00"
                 className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -383,6 +384,7 @@ export const SettingsView: React.FC = () => {
                 type="url"
                 value={supaUrl}
                 onChange={(e) => setSupaUrl(e.target.value)}
+                placeholder="https://your-project.supabase.co"
                 className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>

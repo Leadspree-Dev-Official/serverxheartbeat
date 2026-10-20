@@ -215,8 +215,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <tbody className="divide-y divide-slate-800/60">
                 {projects.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500">
-                      No projects registered yet. Click &quot;Projects&quot; to add one.
+                    <td colSpan={6} className="py-12 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <Layers className="w-8 h-8 text-slate-600 mb-2" />
+                        <p className="text-xs text-slate-400 font-medium">No projects configured yet.</p>
+                        <button
+                          onClick={onNavigateProjects}
+                          className="mt-3 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold transition-colors"
+                        >
+                          + Register Your First Project
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ) : (
