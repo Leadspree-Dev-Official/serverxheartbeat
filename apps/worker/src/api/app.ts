@@ -42,6 +42,27 @@ export function createApp() {
     return c.json({ status: 'ok', service: 'heartbeat-engine', timestamp: new Date().toISOString() });
   });
 
+  // Root landing redirect to Dashboard UI
+  app.get('/', (c) => {
+    return c.html(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=http://localhost:3000/">
+          <title>Heartbeat Manager</title>
+        </head>
+        <body style="font-family: system-ui, -apple-system, sans-serif; background: #020617; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+          <div style="text-align: center; padding: 24px; border: 1px solid #1e293b; border-radius: 16px; background: #0f172a;">
+            <h2 style="margin: 0 0 8px 0; color: #10b981;">Heartbeat Engine Active</h2>
+            <p style="color: #94a3b8; margin: 0 0 16px 0;">Opening Web Dashboard at <a href="http://localhost:3000/" style="color: #34d399; font-weight: bold;">http://localhost:3000</a>...</p>
+            <script>window.location.href = "http://localhost:3000/";</script>
+          </div>
+        </body>
+      </html>
+    `);
+  });
+
   // =========================================================================
   // DASHBOARD METRICS
   // =========================================================================
