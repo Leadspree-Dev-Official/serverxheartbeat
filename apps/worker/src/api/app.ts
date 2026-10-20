@@ -16,6 +16,7 @@ import { executeHeartbeatBatch } from '../engine/runner';
 import { getConnector } from '../engine/connectors';
 import { validateUrlForSSRF } from '../engine/ssrf';
 import { maskSecret, sanitizeErrorMessage } from '../services/crypto';
+import { EmailService } from '../services/email';
 import { UI_BUNDLE } from './ui_bundle';
 
 export type Bindings = {
@@ -479,6 +480,70 @@ export function createApp() {
     const limit = parseInt(c.req.query('limit') || '20', 10);
     const deployments = await storage.getDeployments(limit);
     return c.json(deployments);
+  });
+
+  // =========================================================================
+  // NOTIFICATIONS & EMAIL REPORTING
+  // =========================================================================
+  app.get('/api/notifications/config', async (c) => {
+    const storage = getStorage(c.env);
+    const config = await storage.getEmailConfig();
+    return c.json({
+      ...config,
+      api_key: maskSecret(config.api_key),
+    });
+  });
+
+  app.post('/api/notifications/config', async (c) => {
+    const storage = getStorage(c.env);
+    const body = await c.req.json();
+    const existing = await storage.getEmailConfig();
+
+    const updateData = { ...body };
+    if (!updateData.api_key || updateData.api_key.includes('****')) {
+      updateData.api_key = existing.api_key;
+    }
+
+    const updated = await storage.updateEmailConfig(updateData);
+    return c.json({
+      ...updated,
+      api_key: maskSecret(updated.api_key),
+      message: 'Email configuration saved successfully',
+    });
+  });
+
+  app.post('/api/notifications/test-email', async (c) => {
+    const storage = getStorage(c.env);
+    const body = await c.req.json();
+    const existing = await storage.getEmailConfig();
+
+    const testConfig = {
+      ...existing,
+      ...body,
+      api_key: body.api_key && !body.api_key.includes('****') ? body.api_key : existing.api_key,
+    };
+
+    const emailService = new EmailService(testConfig);
+    const testHtml = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; background: #ffffff; color: #0f172a; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 500px; margin: 0 auto;">
+        <h2 style="color: #10b981; margin-top: 0; font-size: 18px;">Heartbeat Manager • Test Email</h2>
+        <p style="font-size: 13px; color: #334155; line-height: 1.5;">This is a test notification confirming your email alerting configuration is active and working properly.</p>
+        <div style="background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 12px; font-family: monospace; border: 1px solid #e2e8f0; margin: 16px 0;">
+          <div>Provider: ${testConfig.provider.toUpperCase()}</div>
+          <div>From: ${testConfig.from_email}</div>
+          <div>To: ${testConfig.to_emails?.join(', ') || 'None'}</div>
+          <div>Time: ${new Date().toISOString()}</div>
+        </div>
+        <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Heartbeat Manager • Cloud Infrastructure Monitoring</p>
+      </div>
+    `;
+
+    const res = await emailService.sendReport(
+      '[Heartbeat Manager] Test Notification',
+      testHtml
+    );
+
+    return c.json(res);
   });
 
   // Client-side SPA fallback for non-API routes

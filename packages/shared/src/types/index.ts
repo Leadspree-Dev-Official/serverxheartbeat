@@ -102,6 +102,25 @@ export interface WorkerDeployment {
   error_summary?: string | null;
 }
 
+export type EmailProviderType = 'resend' | 'sendgrid' | 'postmark' | 'webhook';
+
+export interface EmailConfig {
+  enabled: boolean;
+  provider: EmailProviderType;
+  api_key?: string | null;
+  from_email: string;
+  to_emails: string[];
+  notify_on_failure: boolean;
+  notify_on_scheduled_summary: boolean;
+  webhook_url?: string | null;
+}
+
+export interface SendEmailResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
 export interface EndpointTestRequest {
   provider: ProviderType;
   base_url: string;

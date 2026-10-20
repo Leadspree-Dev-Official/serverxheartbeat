@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Project, HeartbeatRun, HeartbeatResult, ActivityLog, WorkerDeployment, Schedule } from '@heartbeat/shared';
+import { Project, HeartbeatRun, HeartbeatResult, ActivityLog, WorkerDeployment, Schedule, EmailConfig } from '@heartbeat/shared';
 
 export interface StorageAdapter {
   getProjects(enabledOnly?: boolean): Promise<Project[]>;
@@ -26,6 +26,9 @@ export interface StorageAdapter {
   createDeployment(data: Partial<WorkerDeployment>): Promise<WorkerDeployment>;
   updateDeployment(id: string, data: Partial<WorkerDeployment>): Promise<WorkerDeployment>;
   getDeployments(limit?: number): Promise<WorkerDeployment[]>;
+
+  getEmailConfig(): Promise<EmailConfig>;
+  updateEmailConfig(config: Partial<EmailConfig>): Promise<EmailConfig>;
 }
 
 // In-Memory fallback store for local development or when Supabase keys are not set
@@ -62,7 +65,7 @@ class InMemoryStore implements StorageAdapter {
       endpoint_path: '/v1/health',
       http_method: 'GET',
       auth_type: 'none',
-      expected_status_codes: [200],
+      expected_status_codes: [200, 401],
       timeout_ms: 10000,
       retry_count: 2,
       schedule_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -343,6 +346,26 @@ class InMemoryStore implements StorageAdapter {
   async getDeployments(limit = 20): Promise<WorkerDeployment[]> {
     return this.deployments.slice(0, limit);
   }
+
+  private emailConfig: EmailConfig = {
+    enabled: false,
+    provider: 'resend',
+    api_key: null,
+    from_email: 'Heartbeat Alerts <onboarding@resend.dev>',
+    to_emails: ['admin@example.com'],
+    notify_on_failure: true,
+    notify_on_scheduled_summary: true,
+    webhook_url: null,
+  };
+
+  async getEmailConfig(): Promise<EmailConfig> {
+    return { ...this.emailConfig };
+  }
+
+  async updateEmailConfig(config: Partial<EmailConfig>): Promise<EmailConfig> {
+    this.emailConfig = { ...this.emailConfig, ...config };
+    return { ...this.emailConfig };
+  }
 }
 
 // PostgreSQL Supabase Adapter
@@ -476,6 +499,47 @@ class SupabaseStore implements StorageAdapter {
     const { data, error } = await this.client.from('worker_deployments').select('*').order('started_at', { ascending: false }).limit(limit);
     if (error) throw error;
     return data || [];
+  }
+
+  async getEmailConfig(): Promise<EmailConfig> {
+    try {
+      const { data } = await this.client
+        .from('activity_logs')
+        .select('metadata')
+        .eq('action', 'config.email_settings')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data?.metadata && Object.keys(data.metadata).length > 0) {
+        return data.metadata as EmailConfig;
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      enabled: false,
+      provider: 'resend',
+      api_key: null,
+      from_email: 'Heartbeat Alerts <onboarding@resend.dev>',
+      to_emails: ['admin@example.com'],
+      notify_on_failure: true,
+      notify_on_scheduled_summary: true,
+      webhook_url: null,
+    };
+  }
+
+  async updateEmailConfig(config: Partial<EmailConfig>): Promise<EmailConfig> {
+    const current = await this.getEmailConfig();
+    const updated = { ...current, ...config };
+    await this.logActivity({
+      action: 'config.email_settings',
+      resource_type: 'settings',
+      outcome: 'success',
+      metadata: updated,
+    });
+    return updated;
   }
 }
 

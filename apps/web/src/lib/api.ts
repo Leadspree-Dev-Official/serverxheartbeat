@@ -7,6 +7,8 @@ import {
   DashboardMetrics,
   EndpointTestRequest,
   EndpointTestResponse,
+  EmailConfig,
+  SendEmailResult,
 } from '@heartbeat/shared';
 
 const API_BASE = '/api';
@@ -117,4 +119,19 @@ export const api = {
     }),
 
   getDeployments: (limit = 20) => fetchJson<WorkerDeployment[]>(`/worker/deployments?limit=${limit}`),
+
+  // Email Alerts & Reports
+  getEmailConfig: () => fetchJson<EmailConfig>('/notifications/config'),
+
+  updateEmailConfig: (data: Partial<EmailConfig>) =>
+    fetchJson<EmailConfig>('/notifications/config', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  sendTestEmail: (data?: Partial<EmailConfig>) =>
+    fetchJson<SendEmailResult>('/notifications/test-email', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
 };

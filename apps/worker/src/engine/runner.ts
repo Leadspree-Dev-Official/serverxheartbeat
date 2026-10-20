@@ -3,6 +3,7 @@ import { getConnector } from './connectors';
 import { executeWithRetry } from './retry';
 import { sanitizeErrorMessage } from '../services/crypto';
 import { StorageAdapter } from '../services/supabase';
+import { EmailService } from '../services/email';
 
 export interface BatchRunOptions {
   triggerType: TriggerType;
@@ -173,6 +174,39 @@ export async function executeHeartbeatBatch(
       status: finalStatus,
     },
   });
+
+  // 5. Email Report Dispatch (if enabled in UI settings)
+  try {
+    const emailConfig = await storage.getEmailConfig();
+    if (emailConfig.enabled) {
+      const shouldSend =
+        (emailConfig.notify_on_scheduled_summary && triggerType === 'scheduled') ||
+        (emailConfig.notify_on_failure && failedCount > 0);
+
+      if (shouldSend) {
+        const emailService = new EmailService(emailConfig);
+        const subject = `[Heartbeat ${finalStatus.toUpperCase()}] ${
+          failedCount > 0 ? `${failedCount} Failed` : 'All Healthy'
+        } (${projects.length} endpoints checked)`;
+        const html = emailService.generateHtmlReport(finishedRun, results);
+        const sendRes = await emailService.sendReport(subject, html);
+
+        await storage.logActivity({
+          action: 'notification.email_report',
+          resource_type: 'email',
+          resource_id: run.id,
+          outcome: sendRes.success ? 'success' : 'failed',
+          metadata: {
+            recipients: emailConfig.to_emails,
+            messageId: sendRes.messageId,
+            error: sendRes.error,
+          },
+        });
+      }
+    }
+  } catch (emailErr) {
+    console.error('Failed to dispatch heartbeat email report:', emailErr);
+  }
 
   return { run: finishedRun, results };
 }
