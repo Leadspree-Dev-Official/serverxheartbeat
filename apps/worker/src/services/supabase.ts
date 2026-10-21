@@ -43,8 +43,8 @@ class InMemoryStore implements StorageAdapter {
   private schedules: Schedule[] = [
     {
       id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      name: 'Default Weekly Sunday Run',
-      cron_expression: '30 3 * * SUN',
+      name: 'Default Bi-Weekly Schedule (Sun & Wed)',
+      cron_expression: '30 3 * * SUN,WED',
       timezone: 'Asia/Kolkata',
       enabled: true,
       created_at: new Date().toISOString(),
@@ -592,8 +592,8 @@ class CloudflareKVStore implements StorageAdapter {
     const defaultSchedule: Schedule[] = [
       {
         id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-        name: 'Default Weekly Sunday Run',
-        cron_expression: '30 3 * * SUN',
+        name: 'Default Bi-Weekly Schedule (Sun & Wed)',
+        cron_expression: '30 3 * * SUN,WED',
         timezone: 'Asia/Kolkata',
         enabled: true,
         created_at: '2026-10-20T14:48:03.831Z',

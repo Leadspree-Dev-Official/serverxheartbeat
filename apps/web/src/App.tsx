@@ -66,11 +66,22 @@ export const App: React.FC = () => {
     await loadAllData();
   };
 
+  const getNextRunText = () => {
+    const activeCron = schedules[0]?.cron_expression || '30 3 * * SUN,WED';
+    if (activeCron.includes('SUN') && activeCron.includes('WED')) {
+      return 'Next: Sun & Wed at 09:00 AM IST (03:30 UTC)';
+    }
+    if (activeCron.includes('SUN')) {
+      return 'Next: Sunday at 09:00 AM IST (03:30 UTC)';
+    }
+    return 'Next: Scheduled at 09:00 AM IST (03:30 UTC)';
+  };
+
   return (
     <Shell
       currentTab={currentTab}
       onTabChange={setCurrentTab}
-      nextRunCountdown="Next: Sunday at 09:00 AM IST (03:30 UTC)"
+      nextRunCountdown={getNextRunText()}
       onRunAll={handleRunAll}
     >
       {currentTab === 'dashboard' && (

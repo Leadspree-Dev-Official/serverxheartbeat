@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -29,8 +29,15 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 }) => {
   const activeSchedule = schedules[0];
 
+  const isBiweeklyCron = (cron?: string) =>
+    cron === '30 3 * * WED,SUN' || cron === '30 3 * * SUN,WED';
+
   // Form states
-  const [preset, setPreset] = useState<'weekly' | 'biweekly' | 'daily' | 'custom'>('weekly');
+  const [preset, setPreset] = useState<'weekly' | 'biweekly' | 'daily' | 'custom'>(() => {
+    if (isBiweeklyCron(activeSchedule?.cron_expression)) return 'biweekly';
+    if (activeSchedule?.cron_expression?.endsWith('* * *')) return 'daily';
+    return 'weekly';
+  });
   const [selectedDay, setSelectedDay] = useState<string>('SUN');
   const [selectedHour, setSelectedHour] = useState<number>(9);
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
@@ -38,8 +45,20 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
     activeSchedule?.timezone || 'Asia/Kolkata'
   );
   const [customCron, setCustomCron] = useState<string>(
-    activeSchedule?.cron_expression || '30 3 * * SUN'
+    activeSchedule?.cron_expression || '30 3 * * SUN,WED'
   );
+
+  useEffect(() => {
+    if (activeSchedule) {
+      if (isBiweeklyCron(activeSchedule.cron_expression)) {
+        setPreset('biweekly');
+      } else if (activeSchedule.cron_expression?.endsWith('* * *')) {
+        setPreset('daily');
+      }
+      setCustomCron(activeSchedule.cron_expression);
+      if (activeSchedule.timezone) setSelectedTimezone(activeSchedule.timezone);
+    }
+  }, [activeSchedule?.cron_expression, activeSchedule?.timezone]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
@@ -105,7 +124,6 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
     const list: string[] = [];
     const now = new Date();
 
-    // Generate upcoming dates for Sunday / selectedDay
     const dayMap: Record<string, number> = {
       SUN: 0,
       MON: 1,
@@ -115,27 +133,38 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
       FRI: 5,
       SAT: 6,
     };
-    const targetDayIndex = dayMap[selectedDay] ?? 0;
 
-    for (let i = 1; i <= 4; i++) {
-      const d = new Date(now);
-      const daysUntil = (targetDayIndex - now.getDay() + 7) % 7 || 7;
-      d.setDate(now.getDate() + daysUntil + (i - 1) * 7);
-      d.setHours(selectedHour, selectedMinute, 0, 0);
-      list.push(
-        d.toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZoneName: 'short',
-        })
-      );
+    let targetDays: number[] = [dayMap[selectedDay] ?? 0];
+    if (preset === 'biweekly') {
+      targetDays = [0, 3]; // Sunday and Wednesday
+    } else if (preset === 'daily') {
+      targetDays = [0, 1, 2, 3, 4, 5, 6];
+    }
+
+    let cursor = new Date(now);
+    cursor.setHours(selectedHour, selectedMinute, 0, 0);
+    if (cursor <= now) {
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    for (let dayOffset = 0; dayOffset < 30 && list.length < 4; dayOffset++) {
+      const checkDate = new Date(cursor.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+      if (targetDays.includes(checkDate.getDay())) {
+        list.push(
+          checkDate.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZoneName: 'short',
+          })
+        );
+      }
     }
     return list;
-  }, [selectedDay, selectedHour, selectedMinute]);
+  }, [preset, selectedDay, selectedHour, selectedMinute]);
 
   const handleSaveSchedule = async () => {
     setIsSaving(true);
