@@ -12,7 +12,7 @@
     }
   ],
   "triggers": {
-    "crons": ["30 2 * * MON", "30 3 * * SUN,WED"]
+    "crons": ["30 3 * * SUN,WED"]
   },
   "vars": {
     "ENVIRONMENT": "production",
