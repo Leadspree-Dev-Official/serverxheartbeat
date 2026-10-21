@@ -32,6 +32,19 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
   const isBiweeklyCron = (cron?: string) =>
     cron === '30 3 * * WED,SUN' || cron === '30 3 * * SUN,WED';
 
+  const formatProjectSchedule = (p: Project) => {
+    if (p.schedule_days && p.schedule_days.length > 0) {
+      const days = p.schedule_days.length === 7 ? 'Daily' : p.schedule_days.join(', ');
+      const hour = p.schedule_hours && p.schedule_hours[0] !== undefined ? p.schedule_hours[0] : 9;
+      const min = p.schedule_minutes ?? 0;
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const timeStr = `${h12}:${min.toString().padStart(2, '0')} ${ampm}`;
+      return `${days} • ${timeStr}`;
+    }
+    return p.cron_expression || 'Default Cadence';
+  };
+
   // Form states
   const [preset, setPreset] = useState<'weekly' | 'biweekly' | 'daily' | 'custom'>(() => {
     if (isBiweeklyCron(activeSchedule?.cron_expression)) return 'biweekly';
@@ -636,8 +649,13 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                         {project.last_status}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-mono text-emerald-400 text-[11px]">
-                      {activeSchedule?.cron_expression || '30 3 * * SUN'}
+                    <td className="py-3 px-3">
+                      <div className="font-medium text-slate-200 text-xs">
+                        {formatProjectSchedule(project)}
+                      </div>
+                      <div className="font-mono text-emerald-400 text-[10px]">
+                        {project.cron_expression || '30 3 * * SUN,WED'}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-right text-slate-400">
                       {project.last_checked_at

@@ -12,12 +12,12 @@
     }
   ],
   "triggers": {
-    "crons": ["30 3 * * SUN,WED"]
+    "crons": ["*/15 * * * *"]
   },
   "vars": {
     "ENVIRONMENT": "production",
     "WORKER_NAME": "heartbeat-engine",
-    "DEFAULT_CRON": "30 3 * * SUN,WED",
+    "DEFAULT_CRON": "*/15 * * * *",
     "CLOUDFLARE_ACCOUNT_ID": "cf7e5f7d3d0906f6cb1c5c16ea306627"
   }
 }

@@ -419,6 +419,7 @@ export function createApp() {
     const storage = getStorage(c.env);
     const summary = await executeHeartbeatBatch(storage, {
       triggerType: 'manual',
+      forceAll: true,
       allowHttp: c.env?.ENVIRONMENT === 'development',
     });
 

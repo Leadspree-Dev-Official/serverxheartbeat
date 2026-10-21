@@ -104,6 +104,18 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, onRefresh 
     }
   };
 
+  const formatSchedule = (p: Project) => {
+    if (p.schedule_days && p.schedule_days.length > 0) {
+      const days = p.schedule_days.length === 7 ? 'Daily' : p.schedule_days.join(', ');
+      const hour = p.schedule_hours && p.schedule_hours[0] !== undefined ? p.schedule_hours[0] : 9;
+      const min = p.schedule_minutes ?? 0;
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      return `${days} • ${h12}:${min.toString().padStart(2, '0')} ${ampm}`;
+    }
+    return p.cron_expression || 'Sun, Wed • 9:00 AM';
+  };
+
   const getStatusBadge = (status: string, enabled: boolean) => {
     if (!enabled) {
       return (
@@ -289,10 +301,15 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, onRefresh 
                       {project.last_response_time_ms ? `${project.last_response_time_ms}ms` : '—'}
                     </td>
                     <td className="py-3.5 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                        <Calendar className="w-3 h-3 text-emerald-400" />
-                        <span>{project.cron_expression || '30 3 * * SUN'}</span>
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                          <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{formatSchedule(project)}</span>
+                        </span>
+                        <span className="font-mono text-[10px] text-slate-500 pl-5">
+                          {project.cron_expression || '30 3 * * SUN,WED'}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-3 whitespace-nowrap">
                       <label className="relative inline-flex items-center cursor-pointer">

@@ -9,6 +9,9 @@ export interface BatchRunOptions {
   triggerType: TriggerType;
   allowHttp?: boolean;
   concurrency?: number;
+  forceAll?: boolean;
+  projectId?: string;
+  now?: Date;
 }
 
 export interface RunSummary {
@@ -17,26 +20,126 @@ export interface RunSummary {
 }
 
 /**
- * Executes health checks for all enabled projects in controlled batches
+ * Checks if an individual project is due for execution at the given timestamp
+ * based on its configured days, hours, minutes, and timezone.
+ */
+export function isProjectDue(project: Project, now: Date = new Date()): boolean {
+  if (!project.enabled) return false;
+
+  const tz = project.schedule_timezone || 'Asia/Kolkata';
+
+  let currentDay = '';
+  let currentHour = 0;
+  let currentMinute = 0;
+
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      weekday: 'short',
+      hour: 'numeric',
+      minute: 'numeric',
+      hourCycle: 'h23',
+    });
+    const parts = formatter.formatToParts(now);
+    for (const p of parts) {
+      if (p.type === 'weekday') currentDay = p.value.toUpperCase();
+      if (p.type === 'hour') currentHour = parseInt(p.value, 10);
+      if (p.type === 'minute') currentMinute = parseInt(p.value, 10);
+    }
+  } catch {
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    currentDay = days[now.getUTCDay()];
+    currentHour = now.getUTCHours();
+    currentMinute = now.getUTCMinutes();
+  }
+
+  // 1. Day of week match
+  const configuredDays =
+    project.schedule_days && project.schedule_days.length > 0
+      ? project.schedule_days.map((d) => d.toUpperCase())
+      : ['SUN'];
+
+  if (configuredDays.length < 7 && !configuredDays.includes(currentDay)) {
+    return false;
+  }
+
+  // 2. Hour match
+  const configuredHours =
+    project.schedule_hours && project.schedule_hours.length > 0
+      ? project.schedule_hours
+      : [9];
+
+  if (!configuredHours.includes(currentHour)) {
+    return false;
+  }
+
+  // 3. Minute slot match: 15-minute window for edge runner ticks (:00, :15, :30, :45)
+  const scheduledMinute = project.schedule_minutes ?? 0;
+  const diffMinutes = currentMinute - scheduledMinute;
+  if (diffMinutes < 0 || diffMinutes >= 15) {
+    return false;
+  }
+
+  // 4. Duplicate prevention: Don't re-execute if already checked in the last 20 minutes
+  if (project.last_checked_at) {
+    const elapsedMs = now.getTime() - new Date(project.last_checked_at).getTime();
+    if (elapsedMs < 20 * 60 * 1000) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Executes health checks for due projects (or all projects if manual) in controlled batches
  */
 export async function executeHeartbeatBatch(
   storage: StorageAdapter,
   options: BatchRunOptions
 ): Promise<RunSummary> {
-  const { triggerType, allowHttp = false, concurrency = 5 } = options;
+  const { triggerType, allowHttp = false, concurrency = 5, forceAll = false } = options;
 
   // 1. Retrieve all enabled projects
-  const projects = await storage.getProjects(true);
+  const allProjects = await storage.getProjects(true);
 
-  // 2. Initialize run record in running state
+  // 2. Filter projects based on project-wise schedule or manual force
+  let targetProjects = allProjects;
+  if (options.projectId) {
+    targetProjects = allProjects.filter((p) => p.id === options.projectId);
+  } else if (triggerType === 'scheduled' && !forceAll) {
+    const checkTime = options.now || new Date();
+    targetProjects = allProjects.filter((p) => isProjectDue(p, checkTime));
+  }
+
+  // If this is a scheduled tick and NO projects are due right now, exit quietly without cluttering job history
+  if (triggerType === 'scheduled' && targetProjects.length === 0) {
+    return {
+      run: {
+        id: 'no-op',
+        trigger_type: 'scheduled',
+        total_projects: 0,
+        successful_count: 0,
+        failed_count: 0,
+        skipped_count: allProjects.length,
+        status: 'success',
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      },
+      results: [],
+    };
+  }
+
+  // 3. Initialize run record in running state for due projects
   const run = await storage.createRun({
     trigger_type: triggerType,
-    total_projects: projects.length,
+    total_projects: targetProjects.length,
     status: 'running',
     started_at: new Date().toISOString(),
   });
 
-  if (projects.length === 0) {
+  if (targetProjects.length === 0) {
     const finishedRun = await storage.updateRun(run.id, {
       finished_at: new Date().toISOString(),
       status: 'success',
@@ -53,8 +156,8 @@ export async function executeHeartbeatBatch(
   let successCount = 0;
   let failedCount = 0;
 
-  // 3. Process projects in controlled concurrent batches
-  const queue = [...projects];
+  // 4. Process due projects in controlled concurrent batches
+  const queue = [...targetProjects];
 
   async function processProject(project: Project): Promise<void> {
     const connector = getConnector(project.provider);

@@ -25,11 +25,14 @@ export default {
         const summary = await executeHeartbeatBatch(storage, {
           triggerType: 'scheduled',
           allowHttp: env.ENVIRONMENT === 'development',
+          now: new Date(event.scheduledTime || Date.now()),
         });
-        console.log(
-          `[Heartbeat Cron] Run ${summary.run.id} finished with status: ${summary.run.status}. ` +
-          `Success: ${summary.run.successful_count}, Failed: ${summary.run.failed_count}, Total: ${summary.run.total_projects}`
-        );
+        if (summary.results.length > 0) {
+          console.log(
+            `[Heartbeat Cron] Run ${summary.run.id} finished with status: ${summary.run.status}. ` +
+            `Success: ${summary.run.successful_count}, Failed: ${summary.run.failed_count}, Total: ${summary.run.total_projects}`
+          );
+        }
       } catch (err) {
         console.error('[Heartbeat Cron] Execution error during scheduled heartbeat batch:', err);
       }
