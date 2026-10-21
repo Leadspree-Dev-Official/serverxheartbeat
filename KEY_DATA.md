@@ -17,8 +17,9 @@ This document contains the critical operational data, endpoints, configuration k
 | **GitHub Repository** | `https://github.com/Leadspree-Dev-Official/serverxheartbeat` |
 | **GitHub Default Branch** | `main` |
 | **Runtime Environment** | Cloudflare Workers (V8 Edge Isolates) |
-| **Default Cron Trigger** | `30 3 * * SUN,WED` (Bi-Weekly: Every Sunday & Wednesday at 09:00 AM IST / 03:30 AM UTC) |
-| **Free Tier Usage** | ~50 requests / week (out of 100,000 requests/day free quota) |
+| **Scheduling Engine** | **Project-Driven Dynamic Cron Mapping** (Edge triggers sync automatically from active projects) |
+| **Active Edge Triggers** | `30 3 * * SUN,WED` (Synchronized automatically from enabled projects via Cloudflare API) |
+| **Free Tier Usage** | ~8 requests / month (out of 100,000 requests/day free quota; 99.99% free buffer) |
 
 ---
 
