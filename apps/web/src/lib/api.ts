@@ -118,6 +118,11 @@ export const api = {
       method: 'POST',
     }),
 
+  syncSchedules: () =>
+    fetchJson<{ success: boolean; deployment: WorkerDeployment; details?: any; error?: string }>('/worker/sync-schedules', {
+      method: 'POST',
+    }),
+
   getDeployments: (limit = 20) => fetchJson<WorkerDeployment[]>(`/worker/deployments?limit=${limit}`),
 
   // Email Alerts & Reports

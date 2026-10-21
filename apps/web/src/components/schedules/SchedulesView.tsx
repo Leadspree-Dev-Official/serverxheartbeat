@@ -61,6 +61,45 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
     activeSchedule?.cron_expression || '30 3 * * SUN,WED'
   );
 
+  const [liveEdgeCrons, setLiveEdgeCrons] = useState<string[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const loadWorkerTriggers = async () => {
+    try {
+      const status = await api.getWorkerStatus();
+      if (status.crons && status.crons.length > 0) {
+        setLiveEdgeCrons(status.crons);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadWorkerTriggers();
+  }, []);
+
+  const handleSyncAllProjectSchedules = async () => {
+    setIsSyncing(true);
+    setStatusMessage(null);
+    try {
+      await api.syncSchedules();
+      setStatusMessage({
+        type: 'success',
+        text: 'All project schedules mapped and synchronized to Cloudflare Edge Triggers!',
+      });
+      await loadWorkerTriggers();
+      onRefresh();
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: `Sync failed: ${err.message}`,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     if (activeSchedule) {
       if (isBiweeklyCron(activeSchedule.cron_expression)) {
@@ -542,6 +581,42 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
         {/* Right Column: Execution Projection & Insights */}
         <div className="space-y-6">
+          {/* Dynamic Edge Triggers Box */}
+          <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-400" />
+                <h3 className="font-bold text-sm text-white">Active Edge Triggers</h3>
+              </div>
+              <button
+                onClick={handleSyncAllProjectSchedules}
+                disabled={isSyncing}
+                className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] font-medium text-emerald-400 border border-slate-700 flex items-center gap-1 transition-colors disabled:opacity-50"
+              >
+                <RotateCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>Sync From Projects</span>
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Unique schedules dynamically compiled from your active projects to Cloudflare Workers:
+            </p>
+            <div className="space-y-1.5">
+              {liveEdgeCrons.length === 0 ? (
+                <div className="text-xs text-slate-500 font-mono">Loading active triggers...</div>
+              ) : (
+                liveEdgeCrons.map((cron, i) => (
+                  <div
+                    key={i}
+                    className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <span className="font-mono text-emerald-400 font-semibold">{cron}</span>
+                    <span className="text-[10px] text-slate-400 font-medium">Edge Trigger #{i + 1}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Upcoming Schedule Runs */}
           <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
             <div className="flex items-center gap-2">

@@ -206,6 +206,18 @@ export function createApp() {
       metadata: { name: created.name, provider: created.provider },
     });
 
+    // Project-Driven Dynamic Cron Mapping: Synchronize optimal edge triggers
+    try {
+      const cfService = new CloudflareService({
+        apiToken: c.env?.CLOUDFLARE_API_TOKEN,
+        accountId: c.env?.CLOUDFLARE_ACCOUNT_ID,
+        workerName: c.env?.WORKER_NAME || 'heartbeat-engine',
+      });
+      await cfService.syncAllProjectSchedules(storage);
+    } catch (cfErr) {
+      console.error('[API project.create] Error syncing edge triggers:', cfErr);
+    }
+
     return c.json({
       ...created,
       secret_ref: maskSecret(created.secret_ref),
@@ -250,6 +262,18 @@ export function createApp() {
       metadata: { updated_fields: Object.keys(updateData) },
     });
 
+    // Project-Driven Dynamic Cron Mapping: Synchronize optimal edge triggers
+    try {
+      const cfService = new CloudflareService({
+        apiToken: c.env?.CLOUDFLARE_API_TOKEN,
+        accountId: c.env?.CLOUDFLARE_ACCOUNT_ID,
+        workerName: c.env?.WORKER_NAME || 'heartbeat-engine',
+      });
+      await cfService.syncAllProjectSchedules(storage);
+    } catch (cfErr) {
+      console.error('[API project.update] Error syncing edge triggers:', cfErr);
+    }
+
     return c.json({
       ...updated,
       secret_ref: maskSecret(updated.secret_ref),
@@ -273,6 +297,19 @@ export function createApp() {
         outcome: 'success',
         metadata: { name: project.name },
       });
+
+      // Project-Driven Dynamic Cron Mapping: Synchronize optimal edge triggers
+      try {
+        const cfService = new CloudflareService({
+          apiToken: c.env?.CLOUDFLARE_API_TOKEN,
+          accountId: c.env?.CLOUDFLARE_ACCOUNT_ID,
+          workerName: c.env?.WORKER_NAME || 'heartbeat-engine',
+        });
+        await cfService.syncAllProjectSchedules(storage);
+      } catch (cfErr) {
+        console.error('[API project.delete] Error syncing edge triggers:', cfErr);
+      }
+
       return c.json({ success: true, message: 'Project deleted' });
     }
     return c.json({ error: 'Failed to delete project' }, 500);
@@ -521,16 +558,25 @@ export function createApp() {
 
   app.post('/api/worker/deploy', async (c) => {
     const storage = getStorage(c.env);
-    const schedules = await storage.getSchedules();
-    const cron = schedules[0]?.cron_expression || DEFAULT_CRON_EXPRESSION;
-
     const cfService = new CloudflareService({
       apiToken: c.env?.CLOUDFLARE_API_TOKEN,
       accountId: c.env?.CLOUDFLARE_ACCOUNT_ID,
       workerName: c.env?.WORKER_NAME || 'heartbeat-engine',
     });
 
-    const result = await cfService.syncCronSchedule(cron, storage);
+    const result = await cfService.syncAllProjectSchedules(storage);
+    return c.json(result);
+  });
+
+  app.post('/api/worker/sync-schedules', async (c) => {
+    const storage = getStorage(c.env);
+    const cfService = new CloudflareService({
+      apiToken: c.env?.CLOUDFLARE_API_TOKEN,
+      accountId: c.env?.CLOUDFLARE_ACCOUNT_ID,
+      workerName: c.env?.WORKER_NAME || 'heartbeat-engine',
+    });
+
+    const result = await cfService.syncAllProjectSchedules(storage);
     return c.json(result);
   });
 
