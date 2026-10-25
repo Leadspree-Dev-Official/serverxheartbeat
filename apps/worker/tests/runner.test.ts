@@ -49,4 +49,49 @@ describe('Heartbeat Engine Runner', () => {
       expect(['success', 'warning', 'failed']).toContain(res.status);
     }
   });
+
+  it('records every project result during concurrent execution without dropping any', async () => {
+    const storage = getStorage();
+
+    const p1 = await storage.createProject({
+      name: 'Batch Test 1',
+      provider: 'generic',
+      base_url: 'https://httpbin.org',
+      endpoint_path: '/status/200',
+      expected_status_codes: [200],
+      enabled: true,
+    });
+    const p2 = await storage.createProject({
+      name: 'Batch Test 2',
+      provider: 'generic',
+      base_url: 'https://httpbin.org',
+      endpoint_path: '/status/200',
+      expected_status_codes: [200],
+      enabled: true,
+    });
+    const p3 = await storage.createProject({
+      name: 'Batch Test 3',
+      provider: 'generic',
+      base_url: 'https://httpbin.org',
+      endpoint_path: '/status/200',
+      expected_status_codes: [200],
+      enabled: true,
+    });
+
+    const summary = await executeHeartbeatBatch(storage, {
+      triggerType: 'manual',
+      allowHttp: true,
+      concurrency: 5,
+    });
+
+    const runDetails = await storage.getRunById(summary.run.id);
+    expect(runDetails).toBeDefined();
+    expect(runDetails?.results?.length).toBe(summary.run.total_projects);
+    expect(summary.results.length).toBe(summary.run.total_projects);
+
+    const checkedIds = summary.results.map((r) => r.project_id);
+    expect(checkedIds).toContain(p1.id);
+    expect(checkedIds).toContain(p2.id);
+    expect(checkedIds).toContain(p3.id);
+  });
 });

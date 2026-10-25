@@ -152,7 +152,8 @@ export async function executeHeartbeatBatch(
     return { run: finishedRun, results: [] };
   }
 
-  const results: HeartbeatResult[] = [];
+  const pendingResults: Partial<HeartbeatResult>[] = [];
+  const projectUpdates: Array<{ id: string; data: Partial<Project> }> = [];
   let successCount = 0;
   let failedCount = 0;
 
@@ -198,8 +199,8 @@ export async function executeHeartbeatBatch(
       failedCount++;
     }
 
-    // Record individual project result
-    const createdResult = await storage.createResult({
+    // Stage individual project result for atomic batch commit
+    pendingResults.push({
       run_id: run.id,
       project_id: project.id,
       project_name: project.name,
@@ -210,9 +211,8 @@ export async function executeHeartbeatBatch(
       status: checkResult.status,
       error_summary: checkResult.error ? sanitizeErrorMessage(checkResult.error) : null,
     });
-    results.push(createdResult);
 
-    // Update project state
+    // Stage project state update
     const updateData: Partial<Project> = {
       last_checked_at: new Date().toISOString(),
       last_status: checkResult.status === 'success' ? 'healthy' : (checkResult.status === 'warning' ? 'warning' : 'failed'),
@@ -224,11 +224,7 @@ export async function executeHeartbeatBatch(
       updateData.last_successful_at = new Date().toISOString();
     }
 
-    try {
-      await storage.updateProject(project.id, updateData);
-    } catch (updateErr) {
-      console.error(`Failed to update project ${project.id} metadata:`, updateErr);
-    }
+    projectUpdates.push({ id: project.id, data: updateData });
   }
 
   // Pool execution with bounded concurrency
@@ -248,7 +244,30 @@ export async function executeHeartbeatBatch(
 
   await Promise.all(workers);
 
-  // 4. Calculate overall run outcome
+  // 5. Atomic Batch Commit (avoids race condition data loss across KV / storage)
+  let results: HeartbeatResult[] = [];
+  if (storage.createResults) {
+    results = await storage.createResults(pendingResults);
+  } else {
+    for (const res of pendingResults) {
+      const created = await storage.createResult(res);
+      results.push(created);
+    }
+  }
+
+  if (storage.updateProjectsBatch) {
+    await storage.updateProjectsBatch(projectUpdates);
+  } else {
+    for (const update of projectUpdates) {
+      try {
+        await storage.updateProject(update.id, update.data);
+      } catch (updateErr) {
+        console.error(`Failed to update project ${update.id} metadata:`, updateErr);
+      }
+    }
+  }
+
+  // 6. Calculate overall run outcome
   let finalStatus: RunStatus = 'success';
   if (failedCount > 0 && successCount > 0) {
     finalStatus = 'partial';
@@ -261,7 +280,7 @@ export async function executeHeartbeatBatch(
     successful_count: successCount,
     failed_count: failedCount,
     status: finalStatus,
-    error_summary: failedCount > 0 ? `${failedCount} of ${projects.length} endpoints failed health check` : null,
+    error_summary: failedCount > 0 ? `${failedCount} of ${targetProjects.length} endpoints failed health check` : null,
   });
 
   // Log activity
@@ -271,14 +290,14 @@ export async function executeHeartbeatBatch(
     resource_id: run.id,
     outcome: finalStatus === 'failed' ? 'failed' : 'success',
     metadata: {
-      total: projects.length,
+      total: targetProjects.length,
       successful: successCount,
       failed: failedCount,
       status: finalStatus,
     },
   });
 
-  // 5. Email Report Dispatch (if enabled in UI settings)
+  // 7. Email Report Dispatch (if enabled in UI settings)
   try {
     const emailConfig = await storage.getEmailConfig();
     if (emailConfig.enabled) {
@@ -290,7 +309,7 @@ export async function executeHeartbeatBatch(
         const emailService = new EmailService(emailConfig);
         const subject = `[Heartbeat ${finalStatus.toUpperCase()}] ${
           failedCount > 0 ? `${failedCount} Failed` : 'All Healthy'
-        } (${projects.length} endpoints checked)`;
+        } (${targetProjects.length} endpoints checked)`;
         const html = emailService.generateHtmlReport(finishedRun, results);
         const sendRes = await emailService.sendReport(subject, html);
 
